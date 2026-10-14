@@ -27,6 +27,9 @@ tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "time", "
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "query", "http2", "system-proxy"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
+sha2 = "0.11.1"
+base64 = "0.23.1"
+rand = "0.10.3"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

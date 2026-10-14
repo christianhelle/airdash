@@ -1,11 +1,12 @@
-//! The egui application: picks the view and routes backend events to it.
+//! The egui application: picks the view and keeps the dashboard data fresh.
 
 use airdash_core::api::{Device, DeviceSensors};
-use airdash_core::poller::{PollerEvent, PollerStatus};
+use airdash_core::error::{Error, Result};
+use airdash_core::refresh::Snapshot;
 use airdash_core::settings::Settings;
 use egui_winit::WindowSettings;
 
-use crate::backend::{AuthInfo, Backend};
+use crate::backend::{AuthInfo, Backend, Task};
 use crate::theme;
 use crate::views::settings::{self, SettingsView};
 use crate::views::{dashboard, login::LoginView, status_bar};
@@ -19,12 +20,12 @@ pub struct AirDashApp {
     backend: Backend,
     auth: AuthInfo,
     settings: Settings,
-    status: PollerStatus,
+    status: status_bar::Status,
+    /// The refresh in flight, if any.
+    refresh: Option<Task<Result<Snapshot>>>,
     devices: Vec<Device>,
     readings: Vec<DeviceSensors>,
     loaded: bool,
-    /// New devices or readings arrived since the dashboard data was last loaded.
-    data_stale: bool,
     error: Option<String>,
     view: View,
     login: LoginView,
@@ -43,12 +44,12 @@ impl AirDashApp {
         let mut app = AirDashApp {
             auth: backend.auth_info(),
             settings: backend.settings(),
-            status: backend.poller.status(),
+            status: status_bar::Status::default(),
+            refresh: None,
             backend,
             devices: Vec::new(),
             readings: Vec::new(),
             loaded: false,
-            data_stale: false,
             error: None,
             view: View::Dashboard,
             login: LoginView::default(),
@@ -78,21 +79,38 @@ impl AirDashApp {
         self.loaded = true;
     }
 
-    fn handle_events(&mut self) {
-        for event in self.backend.events() {
-            match event {
-                // A rejected refresh token signs the user out in the background.
-                PollerEvent::Status(status) => {
-                    let signed_out = self.auth.signed_in && !status.signed_in;
-                    self.status = status;
-                    if signed_out {
-                        self.signed_out();
-                    }
+    fn start_refresh(&mut self) {
+        self.status.refreshing = true;
+        self.status.last_attempt = Some(chrono::Utc::now().timestamp());
+        self.refresh = Some(self.backend.refresh());
+    }
+
+    /// Start a refresh when one is due, and pick up the result of one that finished.
+    fn update_refresh(&mut self, ctx: &egui::Context) {
+        if let Some(result) = self.refresh.as_ref().and_then(Task::ready) {
+            self.refresh = None;
+            self.status.refreshing = false;
+            match result {
+                Ok(snapshot) => {
+                    self.status.last_refresh = self.status.last_attempt;
+                    self.status.last_error = None;
+                    self.status.rate_limit = snapshot.rate_limit;
+                    self.load_data();
                 }
-                // Reloaded once on the next drawn frame, however many updates arrive while the window is hidden.
-                PollerEvent::DevicesUpdated => self.data_stale = true,
-                PollerEvent::ReadingsUpdated => self.data_stale = true,
+                // A rejected refresh token signs the user out.
+                Err(Error::Unauthorized) if !self.backend.session.is_signed_in() => self.signed_out(),
+                Err(e) => self.status.last_error = Some(e.to_string()),
             }
+        }
+        if !self.auth.signed_in {
+            return;
+        }
+        let now = chrono::Utc::now().timestamp();
+        if self.status.refresh_due(now) {
+            self.start_refresh();
+        }
+        if let Some(next) = self.status.next_refresh() {
+            ctx.request_repaint_after(std::time::Duration::from_secs((next - now).max(1) as u64));
         }
     }
 
@@ -101,6 +119,8 @@ impl AirDashApp {
         self.devices.clear();
         self.readings.clear();
         self.loaded = false;
+        self.refresh = None;
+        self.status = status_bar::Status::default();
         self.refresh_auth();
     }
 
@@ -141,14 +161,10 @@ impl eframe::App for AirDashApp {
         if let Some(window) = frame.winit_window().filter(|w| w.is_minimized() != Some(true)) {
             self.window = Some(WindowSettings::from_window(ctx.zoom_factor(), window));
         }
-        self.handle_events();
+        self.update_refresh(ctx);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        if std::mem::take(&mut self.data_stale) {
-            self.load_data();
-        }
-
         if !self.auth.signed_in {
             egui::CentralPanel::default().show(ui, |ui| {
                 if self.login.ui(ui, &self.backend, &self.auth) {
@@ -162,7 +178,9 @@ impl eframe::App for AirDashApp {
         self.nav(ui);
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.add_space(4.0);
-            status_bar::ui(ui, &self.status, &self.backend.poller);
+            if status_bar::ui(ui, &self.status) && !self.status.refreshing {
+                self.start_refresh();
+            }
             ui.add_space(4.0);
         });
         // Keep relative times such as "2 min ago" current.

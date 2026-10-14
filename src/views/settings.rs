@@ -1,7 +1,7 @@
-//! Units, theme, recording, advanced sign-in options, account and local data.
+//! Units, theme, advanced sign-in options, account and local data.
 
 use airdash_core::api::Unit;
-use airdash_core::settings::{MIN_POLL_MINUTES, Settings};
+use airdash_core::settings::Settings;
 use egui::{RichText, Ui};
 
 use crate::backend::{AuthInfo, Backend, SignInMethod, Task};
@@ -70,15 +70,6 @@ impl SettingsView {
                 })
                 .response
                 .labelled_by(caption.id);
-        });
-
-        section(ui, "Recording", |ui| {
-            ui.horizontal(|ui| {
-                let caption = ui.label("Check for new readings every");
-                ui.add(egui::DragValue::new(&mut self.draft.poll_interval_minutes).range(MIN_POLL_MINUTES..=120).suffix(" min"))
-                    .labelled_by(caption.id);
-            });
-            hint(ui, "Airthings allows 120 requests per hour and most devices update every 5 minutes.");
         });
 
         widgets::card(ui).show(ui, |ui| {

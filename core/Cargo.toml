@@ -1,7 +1,7 @@
 [package]
 name = "airdash-core"
 version = "0.1.0"
-description = "Airthings Consumer API client, sign-in, polling and local history for AirDash"
+description = "Airthings Consumer API client, sign-in, refreshing and local history for AirDash"
 authors = ["Christian Helle"]
 edition = "2024"
 

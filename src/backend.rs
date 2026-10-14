@@ -9,7 +9,7 @@ use std::time::Duration;
 use airdash_core::api::{self, ApiClient};
 use airdash_core::auth::{self, AuthClient, Credentials};
 use airdash_core::error::{Error, Result};
-use airdash_core::poller::{Poller, PollerEvent};
+use airdash_core::refresh::{self, Snapshot};
 use airdash_core::secrets::KeychainStore;
 use airdash_core::session::Session;
 use airdash_core::settings::Settings;
@@ -48,11 +48,9 @@ pub struct Backend {
     ctx: egui::Context,
     pub session: Arc<Session>,
     pub store: Arc<Store>,
-    pub poller: Arc<Poller>,
     settings: Arc<RwLock<Settings>>,
     settings_path: PathBuf,
     pub data_dir: PathBuf,
-    events: Receiver<PollerEvent>,
 }
 
 impl Backend {
@@ -76,22 +74,9 @@ impl Backend {
             Arc::new(KeychainStore::new(data_dir.join("credentials.json"))),
         ));
 
-        let (tx, events) = mpsc::channel();
-        let repaint = ctx.clone();
-        let poller = Arc::new(Poller::new(
-            session.clone(),
-            store.clone(),
-            settings.clone(),
-            Box::new(move |event| {
-                let _ = tx.send(event);
-                repaint.request_repaint();
-            }),
-        ));
-
         let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
-        runtime.spawn(poller.clone().run());
 
-        Ok(Backend { runtime, ctx, session, store, poller, settings, settings_path, data_dir, events })
+        Ok(Backend { runtime, ctx, session, store, settings, settings_path, data_dir })
     }
 
     /// Run `future` on the runtime and wake the UI when it finishes.
@@ -105,9 +90,15 @@ impl Backend {
         Task(rx)
     }
 
-    /// Poller events received since the last call.
-    pub fn events(&self) -> Vec<PollerEvent> {
-        self.events.try_iter().collect()
+    /// Fetch the devices and their latest readings, and record them.
+    pub fn refresh(&self) -> Task<Result<Snapshot>> {
+        let (session, store) = (self.session.clone(), self.store.clone());
+        self.spawn(async move {
+            let snapshot = refresh::fetch(&session).await?;
+            store.replace_devices(&snapshot.devices)?;
+            store.insert_readings(&snapshot.readings)?;
+            Ok(snapshot)
+        })
     }
 
     pub fn settings(&self) -> Settings {
@@ -137,7 +128,7 @@ impl Backend {
     /// Sign in through the Airthings login page in the system browser.
     pub fn sign_in_oauth(&self) -> Task<Result<()>> {
         let settings = self.settings();
-        let (session, poller) = (self.session.clone(), self.poller.clone());
+        let session = self.session.clone();
         self.spawn(async move {
             let (client_id, client_secret) = settings
                 .oauth_client()
@@ -146,9 +137,7 @@ impl Backend {
                 .sign_in_oauth(client_id, client_secret, settings.redirect_port, |url| {
                     open::that_detached(url).map_err(|e| Error::Other(format!("could not open the browser: {e}")))
                 })
-                .await?;
-            poller.reset();
-            Ok(())
+                .await
         })
     }
 
@@ -156,29 +145,22 @@ impl Backend {
     pub fn sign_in_client_credentials(&self, client_id: &str, client_secret: &str) -> Task<Result<()>> {
         let (client_id, client_secret) = (client_id.trim().to_owned(), client_secret.trim().to_owned());
         let scope = self.settings().scope;
-        let (session, poller) = (self.session.clone(), self.poller.clone());
+        let session = self.session.clone();
         self.spawn(async move {
             if client_id.is_empty() || client_secret.is_empty() {
                 return Err(Error::Other("enter both the client ID and the client secret".into()));
             }
-            session.sign_in(Credentials::ClientCredentials { client_id, client_secret, scope }).await?;
-            poller.reset();
-            Ok(())
+            session.sign_in(Credentials::ClientCredentials { client_id, client_secret, scope }).await
         })
     }
 
     pub fn sign_out(&self) -> Task<()> {
-        let (session, poller) = (self.session.clone(), self.poller.clone());
-        self.spawn(async move {
-            session.sign_out().await;
-            poller.reset();
-        })
+        let session = self.session.clone();
+        self.spawn(async move { session.sign_out().await })
     }
 
     pub fn clear_local_data(&self) -> Result<()> {
-        self.store.clear()?;
-        self.poller.refresh_now();
-        Ok(())
+        self.store.clear()
     }
 
     pub fn open_url(&self, url: &str) {

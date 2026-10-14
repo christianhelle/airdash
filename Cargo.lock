@@ -171,6 +171,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "airdash"
+version = "0.1.0"
+dependencies = [
+ "airdash-core",
+ "chrono",
+ "dirs",
+ "eframe",
+ "egui",
+ "egui_plot",
+ "open",
+ "reqwest",
+ "rfd",
+ "tokio",
+ "tray-icon",
+]
+
+[[package]]
 name = "airdash-core"
 version = "0.1.0"
 dependencies = [
@@ -186,23 +203,6 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "wiremock",
-]
-
-[[package]]
-name = "airdash-egui"
-version = "0.1.0"
-dependencies = [
- "airdash-core",
- "chrono",
- "dirs",
- "eframe",
- "egui",
- "egui_plot",
- "open",
- "reqwest",
- "rfd",
- "tokio",
- "tray-icon",
 ]
 
 [[package]]

@@ -53,6 +53,7 @@ pub fn show(ui: &mut Ui, id: &str, points: &[(i64, f64)], sensor_type: &str, uni
         .show_x(false)
         .show_y(false)
         .y_axis_min_width(48.0)
+        .show_grid([false, true])
         .x_axis_formatter(|mark, range| time_label(mark.value as i64, range.end() - range.start()))
         .y_axis_formatter(|mark, _| value_label(mark.value))
         .label_formatter(|position| match position {

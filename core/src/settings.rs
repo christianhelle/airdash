@@ -5,7 +5,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::api::Unit;
-use crate::auth::{BUILTIN_CLIENT_ID, BUILTIN_CLIENT_SECRET, DEFAULT_REDIRECT_PORT, DEFAULT_SCOPE};
+use crate::auth::{DEFAULT_REDIRECT_PORT, DEFAULT_SCOPE};
 use crate::error::{Error, Result};
 
 pub const MIN_POLL_MINUTES: u32 = 2;
@@ -19,7 +19,8 @@ pub struct Settings {
     pub close_to_tray: bool,
     /// "system", "light" or "dark".
     pub theme: String,
-    /// Overrides the OAuth client compiled into the app.
+    /// An Airthings OAuth client (authorization code flow) to sign in through the browser with.
+    /// Nothing is compiled into the app: each user brings their own client.
     pub oauth_client_id: Option<String>,
     pub oauth_client_secret: Option<String>,
     pub redirect_port: u16,
@@ -79,14 +80,9 @@ impl Settings {
         self
     }
 
-    /// The OAuth client to sign in with: the user's override, else the one built into the app.
+    /// The OAuth client to sign in through the browser with, if the user has set one up.
     pub fn oauth_client(&self) -> Option<(String, Option<String>)> {
-        if let Some(id) = &self.oauth_client_id {
-            return Some((id.clone(), self.oauth_client_secret.clone()));
-        }
-        BUILTIN_CLIENT_ID
-            .filter(|id| !id.is_empty())
-            .map(|id| (id.to_owned(), BUILTIN_CLIENT_SECRET.filter(|s| !s.is_empty()).map(str::to_owned)))
+        self.oauth_client_id.clone().map(|id| (id, self.oauth_client_secret.clone()))
     }
 }
 
@@ -134,7 +130,8 @@ mod tests {
     }
 
     #[test]
-    fn override_client_wins_over_builtin() {
+    fn oauth_client_comes_only_from_settings() {
+        assert_eq!(Settings::default().oauth_client(), None);
         let settings = Settings { oauth_client_id: Some("mine".into()), ..Default::default() };
         assert_eq!(settings.oauth_client(), Some(("mine".into(), None)));
     }

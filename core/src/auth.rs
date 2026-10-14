@@ -18,10 +18,6 @@ pub const DEFAULT_SCOPE: &str = "read:device:current_values";
 pub const DEFAULT_REDIRECT_PORT: u16 = 53682;
 pub const CALLBACK_PATH: &str = "/callback";
 
-/// OAuth client compiled into release builds. Empty when the build has none registered.
-pub const BUILTIN_CLIENT_ID: Option<&str> = option_env!("AIRDASH_CLIENT_ID");
-pub const BUILTIN_CLIENT_SECRET: Option<&str> = option_env!("AIRDASH_CLIENT_SECRET");
-
 /// What the app keeps (in the OS keychain) to get new access tokens without asking the user again.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]

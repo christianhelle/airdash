@@ -1,5 +1,5 @@
-// Prevents an extra console window on Windows in release builds.
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// A GUI app on Windows in every build, so launching it never opens a console window.
+#![windows_subsystem = "windows"]
 
 mod app;
 mod backend;

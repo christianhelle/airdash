@@ -1,6 +1,8 @@
 // A GUI app on Windows in every build, so launching it never opens a console window.
 #![windows_subsystem = "windows"]
 
+use std::sync::{Arc, OnceLock};
+
 mod app;
 mod backend;
 mod chart;
@@ -19,6 +21,14 @@ fn main() -> eframe::Result {
     let single_instance::Instance::Primary(instance) = single_instance::acquire() else {
         return Ok(());
     };
+    // Answer other launches right away; the window can be shown once egui is up.
+    let egui_ctx: Arc<OnceLock<egui::Context>> = Arc::default();
+    let show_ctx = egui_ctx.clone();
+    single_instance::listen(instance, move || {
+        if let Some(ctx) = show_ctx.get() {
+            tray::show_window(ctx);
+        }
+    });
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("AirDash")
         // Also names the folder eframe saves the window size and position in: the app's own data folder.
@@ -37,8 +47,7 @@ fn main() -> eframe::Result {
         "AirDash",
         options,
         Box::new(|cc| {
-            let ctx = cc.egui_ctx.clone();
-            single_instance::listen(instance, move || tray::show_window(&ctx));
+            let _ = egui_ctx.set(cc.egui_ctx.clone());
             let backend = backend::Backend::new(cc.egui_ctx.clone())?;
             Ok(Box::new(app::AirDashApp::new(&cc.egui_ctx, backend, cc.storage)))
         }),

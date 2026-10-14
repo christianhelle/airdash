@@ -53,6 +53,11 @@ pub fn grid<T>(ui: &mut Ui, items: &[T], min_width: f32, gap: f32, mut cell: imp
 pub fn level_badge(ui: &mut Ui, level: Level) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
+        // Keep the shape before the label in right-to-left layouts too.
+        let shape_first = !ui.layout().prefer_right_to_left();
+        if !shape_first {
+            ui.label(RichText::new(level.label()).size(12.0).weak());
+        }
         let size = 10.0;
         let (rect, _) = ui.allocate_exact_size(vec2(size, size), Sense::hover());
         let color = level_color(level);
@@ -66,7 +71,9 @@ pub fn level_badge(ui: &mut Ui, level: Level) {
             )),
             Level::Poor => painter.rect_filled(rect.shrink(1.0), 1.0, color),
         };
-        ui.label(RichText::new(level.label()).size(12.0).weak());
+        if shape_first {
+            ui.label(RichText::new(level.label()).size(12.0).weak());
+        }
     })
     .response
     .on_hover_text(level.label());

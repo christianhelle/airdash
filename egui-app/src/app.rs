@@ -1,11 +1,11 @@
 //! The egui application: picks the view and routes backend events to it.
 
 use airdash_core::api::{Device, DeviceSensors};
-use airdash_core::poller::PollerEvent;
+use airdash_core::poller::{PollerEvent, PollerStatus};
 use airdash_core::settings::Settings;
 
 use crate::backend::{AuthInfo, Backend};
-use crate::views::{dashboard, login::LoginView};
+use crate::views::{dashboard, login::LoginView, status_bar};
 
 #[derive(Debug, Clone, PartialEq)]
 enum View {
@@ -18,6 +18,7 @@ pub struct AirDashApp {
     backend: Backend,
     auth: AuthInfo,
     settings: Settings,
+    status: PollerStatus,
     devices: Vec<Device>,
     readings: Vec<DeviceSensors>,
     loaded: bool,
@@ -31,6 +32,7 @@ impl AirDashApp {
         let mut app = AirDashApp {
             auth: backend.auth_info(),
             settings: backend.settings(),
+            status: backend.poller.status(),
             backend,
             devices: Vec::new(),
             readings: Vec::new(),
@@ -67,8 +69,13 @@ impl AirDashApp {
         for event in self.backend.events() {
             match event {
                 // A rejected refresh token signs the user out in the background.
-                PollerEvent::Status(status) if self.auth.signed_in && !status.signed_in => self.signed_out(),
-                PollerEvent::Status(_) => {}
+                PollerEvent::Status(status) => {
+                    let signed_out = self.auth.signed_in && !status.signed_in;
+                    self.status = status;
+                    if signed_out {
+                        self.signed_out();
+                    }
+                }
                 PollerEvent::DevicesUpdated | PollerEvent::ReadingsUpdated => self.load_data(),
             }
         }
@@ -116,6 +123,13 @@ impl eframe::App for AirDashApp {
         }
 
         self.nav(ui);
+        egui::Panel::bottom("status").show(ui, |ui| {
+            ui.add_space(4.0);
+            status_bar::ui(ui, &self.status, &self.backend.poller);
+            ui.add_space(4.0);
+        });
+        // Keep relative times such as "2 min ago" current.
+        ui.ctx().request_repaint_after(std::time::Duration::from_secs(30));
         egui::CentralPanel::default().show(ui, |ui| {
             egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
                 if let Some(error) = &self.error {

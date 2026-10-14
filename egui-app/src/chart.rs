@@ -25,13 +25,26 @@ pub fn value_label(value: f64) -> String {
     if text == "-0" { "0".into() } else { text.into() }
 }
 
+/// Value range to show: the data's own, widened around flat series so the line sits mid-chart.
+pub fn y_bounds(values: impl IntoIterator<Item = f64>) -> Option<(f64, f64)> {
+    let (min, max) = values.into_iter().fold(None, |acc: Option<(f64, f64)>, v| match acc {
+        Some((lo, hi)) => Some((lo.min(v), hi.max(v))),
+        None => Some((v, v)),
+    })?;
+    let pad = if max - min < f64::EPSILON { 1.0 } else { 0.0 };
+    Some((min - pad, max + pad))
+}
+
 /// `points` are `(epoch seconds, metric value)` pairs.
 pub fn show(ui: &mut Ui, id: &str, points: &[(i64, f64)], sensor_type: &str, unit: Unit, raw_unit: &str) {
     let series: Vec<[f64; 2]> = points.iter().map(|&(t, v)| [t as f64, convert(sensor_type, v, unit)]).collect();
     let unit_label = display_unit(sensor_type, unit, raw_unit);
 
-    Plot::new(id)
-        .height(HEIGHT)
+    let mut plot = Plot::new(id);
+    if let Some((min, max)) = y_bounds(series.iter().map(|p| p[1])) {
+        plot = plot.include_y(min).include_y(max);
+    }
+    plot.height(HEIGHT)
         .allow_zoom(false)
         .allow_drag(false)
         .allow_scroll(false)
@@ -60,6 +73,14 @@ pub fn show(ui: &mut Ui, id: &str, points: &[(i64, f64)], sensor_type: &str, uni
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn widens_flat_series() {
+        assert_eq!(y_bounds([51.0, 51.0]), Some((50.0, 52.0)));
+        assert_eq!(y_bounds([0.0]), Some((-1.0, 1.0)));
+        assert_eq!(y_bounds([1.0, 3.0]), Some((1.0, 3.0)));
+        assert_eq!(y_bounds([]), None);
+    }
 
     #[test]
     fn trims_value_labels() {

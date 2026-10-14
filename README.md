@@ -91,7 +91,7 @@ npm run tauri build
 
 `egui-app/` is the same app without a web view: an [egui](https://github.com/emilk/egui) UI on top of the shared
 `airdash-core` crate. It has the same features (dashboard, history charts, CSV export, Renew controls, settings,
-tray icon) and uses the same settings, history database and stored sign-in as the Tauri app, so you can switch
+tray icon), and you can drag device cards to reorder them within a home and uses the same settings, history database and stored sign-in as the Tauri app, so you can switch
 between them. It needs only Rust to build:
 
 ```bash

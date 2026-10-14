@@ -33,8 +33,13 @@ pub fn reorder(serials: &[String], dragged: &str, target: &str, after: bool) -> 
     order
 }
 
+/// Accepts RFC 3339 and the zone-less ISO form the API sends; zone-less times are UTC.
 pub fn parse_recorded(recorded: Option<&str>) -> Option<i64> {
-    chrono::DateTime::parse_from_rfc3339(recorded?).ok().map(|t| t.timestamp())
+    let recorded = recorded?;
+    if let Ok(t) = chrono::DateTime::parse_from_rfc3339(recorded) {
+        return Some(t.timestamp());
+    }
+    chrono::NaiveDateTime::parse_from_str(recorded, "%Y-%m-%dT%H:%M:%S%.f").ok().map(|t| t.and_utc().timestamp())
 }
 
 /// What is being dragged. Devices can only move within their own home.
@@ -214,6 +219,7 @@ mod tests {
     #[test]
     fn parses_recorded_timestamps() {
         assert_eq!(parse_recorded(Some("2026-10-14T10:00:00Z")), Some(1_791_972_000));
+        assert_eq!(parse_recorded(Some("2026-10-14T10:00:00")), Some(1_791_972_000));
         assert_eq!(parse_recorded(Some("garbage")), None);
         assert_eq!(parse_recorded(None), None);
     }

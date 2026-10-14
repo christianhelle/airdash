@@ -1,9 +1,9 @@
 """Draws the AirDash icon: a slate ring around a slate disc with white air-flow waves.
 
-Usage: python assets/make_icon.py assets/icon.png   (needs Pillow)
+Usage: python assets/make_icon.py   (needs Pillow; writes icon.png and the Windows icon.ico next to this script)
 """
 import math
-import sys
+from pathlib import Path
 
 from PIL import Image, ImageDraw
 
@@ -37,5 +37,7 @@ def draw() -> Image.Image:
 
 
 if __name__ == "__main__":
-    out = sys.argv[1]
-    draw().resize((256, 256), Image.LANCZOS).save(out)
+    here = Path(__file__).parent
+    icon = draw()
+    icon.resize((256, 256), Image.LANCZOS).save(here / "icon.png")
+    icon.save(here / "icon.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])

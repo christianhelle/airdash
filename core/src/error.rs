@@ -1,0 +1,20 @@
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("network error: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("Airthings returned HTTP {status}: {message}")]
+    Api { status: u16, message: String },
+    #[error("rate limited by Airthings, retry in {0} seconds")]
+    RateLimited(u64),
+    #[error("not signed in")]
+    Unauthorized,
+    #[error("Airthings rejected the sign-in: {0}")]
+    Rejected(String),
+    #[error("database error: {0}")]
+    Db(#[from] rusqlite::Error),
+    #[error("{0}")]
+    Other(String),
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
+

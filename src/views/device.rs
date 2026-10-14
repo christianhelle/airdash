@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use airdash_core::api::{Device, RemoteControlState, Unit};
-use airdash_core::store::SensorInfo;
+use airdash_core::store::{SensorInfo, Store};
 use egui::{RichText, Ui};
 
 use airdash_core::error::Result;
@@ -65,12 +65,27 @@ impl Range {
     }
 }
 
+type History = (Vec<SensorInfo>, HashMap<String, Vec<(i64, f64)>>);
+
+/// Every sensor's readings between `from` and `to`. Large ranges take a while, so this runs off the UI thread.
+fn load_history(store: &Store, serial: &str, from: i64, to: i64) -> Result<History> {
+    let mut types = store.sensor_types(serial)?;
+    sort_sensors(&mut types, |s| &s.sensor_type);
+    let series = types
+        .iter()
+        .map(|s| Ok((s.sensor_type.clone(), store.series(serial, &s.sensor_type, from, to, MAX_POINTS)?)))
+        .collect::<Result<HashMap<_, _>>>()?;
+    Ok((types, series))
+}
+
 pub struct DeviceView {
     pub serial: String,
     range: Range,
     sensors: Vec<SensorInfo>,
     series: HashMap<String, Vec<(i64, f64)>>,
     loaded: bool,
+    /// History being loaded in the background.
+    history: Option<Task<Result<History>>>,
     message: String,
     /// The readings version the charts were loaded for.
     version: Option<u64>,
@@ -90,6 +105,7 @@ impl DeviceView {
             sensors: Vec::new(),
             series: HashMap::new(),
             loaded: false,
+            history: None,
             message: String::new(),
             version: None,
             export: None,
@@ -100,17 +116,17 @@ impl DeviceView {
         }
     }
 
+    /// Start loading the history for the current range. A newer request replaces one still running,
+    /// whose result is then dropped.
     fn load(&mut self, backend: &Backend) {
         let (from, to) = self.range.bounds(chrono::Utc::now().timestamp());
-        let store = &backend.store;
-        let result = store.sensor_types(&self.serial).and_then(|mut types| {
-            sort_sensors(&mut types, |s| &s.sensor_type);
-            let series = types
-                .iter()
-                .map(|s| Ok((s.sensor_type.clone(), store.series(&self.serial, &s.sensor_type, from, to, MAX_POINTS)?)))
-                .collect::<airdash_core::error::Result<HashMap<_, _>>>()?;
-            Ok((types, series))
-        });
+        let (store, serial) = (backend.store.clone(), self.serial.clone());
+        self.history = Some(backend.spawn_blocking(move || load_history(&store, &serial, from, to)));
+    }
+
+    fn apply_history(&mut self) {
+        let Some(result) = self.history.as_ref().and_then(Task::ready) else { return };
+        self.history = None;
         match result {
             Ok((sensors, series)) => {
                 self.sensors = sensors;
@@ -138,6 +154,7 @@ impl DeviceView {
             self.version = Some(version);
             self.load(backend);
         }
+        self.apply_history();
 
         let back = ui.link("⬅ All devices").clicked();
         ui.label(RichText::new(if device.name.is_empty() { &device.serial_number } else { &device.name }).size(22.0).strong());
@@ -170,6 +187,9 @@ impl DeviceView {
             ui.add_space(8.0);
         }
 
+        if !self.loaded {
+            ui.weak("Loading history…");
+        }
         if self.loaded && self.sensors.is_empty() {
             widgets::card(ui).show(ui, |ui| {
                 ui.set_width(ui.available_width());

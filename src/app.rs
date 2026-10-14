@@ -3,6 +3,7 @@
 use airdash_core::api::{Device, DeviceSensors};
 use airdash_core::poller::{PollerEvent, PollerStatus};
 use airdash_core::settings::Settings;
+use egui_winit::WindowSettings;
 
 use crate::backend::{AuthInfo, Backend};
 use crate::theme;
@@ -35,10 +36,9 @@ pub struct AirDashApp {
     tray: Option<Tray>,
     /// Explaining, the first time the window is closed, that AirDash keeps running in the tray.
     close_notice: bool,
-    /// Whether the window is minimized, when its reported size and position are meaningless.
-    minimized: bool,
-    /// The window geometry eframe last saved while the window was not minimized.
-    saved_window: Option<String>,
+    /// The window's size and position as of the last frame it was not minimized, saved in place of
+    /// eframe's own snapshot: a minimized window reports a 0x0 size far off screen.
+    window: Option<WindowSettings>,
 }
 
 /// The key eframe saves the window's size and position under, just before it calls [`eframe::App::save`].
@@ -66,8 +66,7 @@ impl AirDashApp {
             login: LoginView::default(),
             tray,
             close_notice: false,
-            minimized: false,
-            saved_window: storage.and_then(|s| s.get_string(WINDOW_STATE_KEY)),
+            window: storage.and_then(|s| eframe::get_value(s, WINDOW_STATE_KEY)),
         };
         app.refresh_auth();
         app
@@ -206,19 +205,16 @@ impl eframe::App for AirDashApp {
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        // A minimized window reports a 0x0 size far off screen, so keep the last real geometry instead.
-        if self.minimized {
-            if let Some(window) = &self.saved_window {
-                storage.set_string(WINDOW_STATE_KEY, window.clone());
-            }
-        } else {
-            self.saved_window = storage.get_string(WINDOW_STATE_KEY);
+        if let Some(window) = &self.window {
+            eframe::set_value(storage, WINDOW_STATE_KEY, window);
         }
     }
 
     // Runs even while the window is hidden in the tray.
-    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.minimized = ctx.input(|i| i.viewport().minimized.unwrap_or(false));
+    fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if let Some(window) = frame.winit_window().filter(|w| w.is_minimized() != Some(true)) {
+            self.window = Some(WindowSettings::from_window(ctx.zoom_factor(), window));
+        }
         // Runs while the window is hidden too, so poller events never pile up in the channel.
         self.handle_events();
         let Some(tray) = &self.tray else { return };

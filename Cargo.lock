@@ -182,6 +182,7 @@ dependencies = [
  "dirs",
  "eframe",
  "egui",
+ "egui-winit",
  "egui_plot",
  "open",
  "reqwest",

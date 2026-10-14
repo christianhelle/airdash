@@ -1,6 +1,8 @@
 //! Sign-in screen: Airthings browser sign-in, or the user's own API client.
 
+use airdash_core::auth::redirect_uri;
 use airdash_core::error::Result;
+use airdash_core::settings::Settings;
 
 use crate::backend::{AuthInfo, Backend, Task};
 
@@ -14,6 +16,24 @@ pub struct LoginView {
     client_id: String,
     client_secret: String,
     show_credentials: Option<bool>,
+    /// An OAuth client typed in here, before any sign-in, for the browser flow.
+    oauth: Option<OAuthForm>,
+}
+
+struct OAuthForm {
+    client_id: String,
+    client_secret: String,
+    redirect_port: u16,
+}
+
+impl OAuthForm {
+    fn from_settings(settings: &Settings) -> Self {
+        OAuthForm {
+            client_id: settings.oauth_client_id.clone().unwrap_or_default(),
+            client_secret: settings.oauth_client_secret.clone().unwrap_or_default(),
+            redirect_port: settings.redirect_port,
+        }
+    }
 }
 
 impl LoginView {
@@ -29,7 +49,7 @@ impl LoginView {
             }
         }
         let busy = self.task.is_some();
-        let show_credentials = self.show_credentials.get_or_insert(!auth.oauth_available);
+        let mut show_credentials = *self.show_credentials.get_or_insert(!auth.oauth_available);
 
         // Measured outside the scroll area, whose own height is unbounded.
         let top_space = (ui.available_height() * 0.18).max(16.0);
@@ -55,14 +75,14 @@ impl LoginView {
                             ui.weak("Finish signing in in the browser window that opened, then come back here.");
                         }
                         ui.vertical_centered(|ui| {
-                            let toggle = if *show_credentials { "Hide" } else { "Use your own API client instead" };
+                            let toggle = if show_credentials { "Hide" } else { "Use your own API client instead" };
                             if ui.link(toggle).clicked() {
-                                *show_credentials = !*show_credentials;
+                                show_credentials = !show_credentials;
                             }
                         });
                     }
 
-                    if *show_credentials {
+                    if show_credentials {
                         ui.add_space(8.0);
                         ui.horizontal_wrapped(|ui| {
                             ui.spacing_mut().item_spacing.x = 0.0;
@@ -91,6 +111,11 @@ impl LoginView {
                         }
                     }
 
+                    if !auth.oauth_available {
+                        ui.add_space(12.0);
+                        self.oauth_setup(ui, backend, busy);
+                    }
+
                     if !self.error.is_empty() {
                         ui.add_space(8.0);
                         ui.colored_label(ui.visuals().error_fg_color, &self.error);
@@ -101,6 +126,49 @@ impl LoginView {
             ui.weak("AirDash is not made by Airthings. Readings are stored only on this computer.");
             ui.add_space(16.0);
         }));
+        self.show_credentials = Some(show_credentials);
         signed_in
+    }
+
+    /// Set up an Airthings OAuth client (authorization code flow) and sign in through the browser with it.
+    fn oauth_setup(&mut self, ui: &mut egui::Ui, backend: &Backend, busy: bool) {
+        let form = self.oauth.get_or_insert_with(|| OAuthForm::from_settings(&backend.settings()));
+        let mut start = false;
+        egui::CollapsingHeader::new("Sign in through the browser with your own OAuth client").show(ui, |ui| {
+            ui.weak("For an Airthings OAuth client that uses the authorization code flow. Register this redirect URI with it:");
+            ui.code(redirect_uri(form.redirect_port));
+            ui.add_space(4.0);
+            let caption = ui.label("OAuth client ID");
+            ui.add(egui::TextEdit::singleline(&mut form.client_id).desired_width(f32::INFINITY)).labelled_by(caption.id);
+            let caption = ui.label("OAuth client secret (leave empty for public clients)");
+            ui.add(egui::TextEdit::singleline(&mut form.client_secret).password(true).desired_width(f32::INFINITY))
+                .labelled_by(caption.id);
+            ui.horizontal(|ui| {
+                let caption = ui.label("Redirect port");
+                ui.add(egui::DragValue::new(&mut form.redirect_port).range(1024..=65535)).labelled_by(caption.id);
+            });
+            ui.add_space(8.0);
+            let ready = !form.client_id.trim().is_empty();
+            start = ui.add_enabled(!busy && ready, egui::Button::new("Sign in through the browser")).clicked();
+        });
+        if !start {
+            return;
+        }
+
+        // Saved first, because the browser sign-in reads the client from the settings.
+        let settings = Settings {
+            oauth_client_id: Some(form.client_id.clone()),
+            oauth_client_secret: Some(form.client_secret.clone()),
+            redirect_port: form.redirect_port,
+            ..backend.settings()
+        };
+        self.error.clear();
+        match backend.save_settings(settings) {
+            Ok(_) => {
+                self.waiting_for_browser = true;
+                self.task = Some(backend.sign_in_oauth());
+            }
+            Err(e) => self.error = e.to_string(),
+        }
     }
 }

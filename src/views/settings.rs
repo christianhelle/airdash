@@ -85,7 +85,7 @@ impl SettingsView {
         widgets::card(ui).show(ui, |ui| {
             ui.set_width(ui.available_width());
             egui::CollapsingHeader::new(RichText::new("Advanced sign-in options").strong()).show(ui, |ui| {
-                hint(ui, "Use a different Airthings OAuth client (authorization code flow). Register this redirect URI with it:");
+                hint(ui, "Sign in through the browser with your own Airthings OAuth client (authorization code flow). Register this redirect URI with it:");
                 ui.code(&auth.redirect_uri);
                 ui.add_space(4.0);
                 // Each field is labelled by its caption, so screen readers announce it.

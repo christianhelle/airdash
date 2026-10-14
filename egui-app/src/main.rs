@@ -7,6 +7,7 @@ mod chart;
 mod format;
 mod sensors;
 mod theme;
+mod tray;
 mod views;
 mod widgets;
 

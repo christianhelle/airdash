@@ -6,6 +6,7 @@ use airdash_core::settings::Settings;
 
 use crate::backend::{AuthInfo, Backend};
 use crate::theme;
+use crate::tray::Tray;
 use crate::views::settings::{self, SettingsView};
 use crate::views::{dashboard, device::DeviceView, login::LoginView, status_bar};
 
@@ -28,12 +29,17 @@ pub struct AirDashApp {
     error: Option<String>,
     view: View,
     login: LoginView,
+    /// `None` when the platform has no tray, in which case closing the window quits.
+    tray: Option<Tray>,
 }
 
 impl AirDashApp {
     pub fn new(ctx: &egui::Context, backend: Backend) -> Self {
         theme::install(ctx);
         theme::apply(ctx, &backend.settings().theme);
+        let tray = Tray::create(ctx, backend.poller.clone())
+            .inspect_err(|e| eprintln!("AirDash: no tray icon: {e}"))
+            .ok();
         let mut app = AirDashApp {
             auth: backend.auth_info(),
             settings: backend.settings(),
@@ -46,6 +52,7 @@ impl AirDashApp {
             error: None,
             view: View::Dashboard,
             login: LoginView::default(),
+            tray,
         };
         app.refresh_auth();
         app
@@ -77,6 +84,9 @@ impl AirDashApp {
                 // A rejected refresh token signs the user out in the background.
                 PollerEvent::Status(status) => {
                     let signed_out = self.auth.signed_in && !status.signed_in;
+                    if let Some(tray) = &self.tray {
+                        tray.set_paused(status.paused);
+                    }
                     self.status = status;
                     if signed_out {
                         self.signed_out();
@@ -120,6 +130,16 @@ impl AirDashApp {
 }
 
 impl eframe::App for AirDashApp {
+    // Runs even while the window is hidden in the tray.
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let Some(tray) = &self.tray else { return };
+        let quitting = tray.quitting.load(std::sync::atomic::Ordering::SeqCst);
+        if ctx.input(|i| i.viewport().close_requested()) && self.settings.close_to_tray && !quitting {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.handle_events();
 

@@ -40,7 +40,7 @@ pub fn grid<T>(ui: &mut Ui, items: &[T], min_width: f32, gap: f32, mut cell: imp
     for row in items.chunks(count) {
         ui.horizontal_top(|ui| {
             for item in row {
-                ui.allocate_ui(vec2(width, 0.0), |ui| {
+                ui.allocate_ui_with_layout(vec2(width, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
                     ui.set_width(width);
                     cell(ui, item);
                 });

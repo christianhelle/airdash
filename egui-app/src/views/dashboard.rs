@@ -74,6 +74,8 @@ fn device_card(ui: &mut Ui, device: &Device, reading: Option<&DeviceSensors>, un
 
     let response = ui
         .scope_builder(UiBuilder::new().sense(Sense::click()), |ui| {
+            // Selectable text would swallow clicks meant for the card.
+            ui.style_mut().interaction.selectable_labels = false;
             widgets::card(ui).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal_top(|ui| {

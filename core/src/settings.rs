@@ -16,9 +16,6 @@ pub struct Settings {
     /// Display units. Readings are always fetched and stored in metric.
     pub unit: Unit,
     pub poll_interval_minutes: u32,
-    pub close_to_tray: bool,
-    /// Whether the user has been told that closing the window keeps AirDash running in the tray.
-    pub tray_notice_seen: bool,
     /// "system", "light" or "dark".
     pub theme: String,
     /// An Airthings OAuth client (authorization code flow) to sign in through the browser with.
@@ -35,8 +32,6 @@ impl Default for Settings {
         Settings {
             unit: Unit::Metric,
             poll_interval_minutes: 5,
-            close_to_tray: true,
-            tray_notice_seen: false,
             theme: "system".into(),
             oauth_client_id: None,
             oauth_client_secret: None,
@@ -114,7 +109,6 @@ mod tests {
         let settings: Settings = serde_json::from_str(r#"{"theme": "dark"}"#).unwrap();
         assert_eq!(settings.theme, "dark");
         assert_eq!(settings.poll_interval_minutes, 5);
-        assert!(!settings.tray_notice_seen);
     }
 
     #[test]

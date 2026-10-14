@@ -7,7 +7,6 @@ use egui_winit::WindowSettings;
 
 use crate::backend::{AuthInfo, Backend};
 use crate::theme;
-use crate::tray::Tray;
 use crate::views::settings::{self, SettingsView};
 use crate::views::{dashboard, login::LoginView, status_bar};
 
@@ -29,10 +28,6 @@ pub struct AirDashApp {
     error: Option<String>,
     view: View,
     login: LoginView,
-    /// `None` when the platform has no tray, in which case closing the window quits.
-    tray: Option<Tray>,
-    /// Explaining, the first time the window is closed, that AirDash keeps running in the tray.
-    close_notice: bool,
     /// The window's size and position as of the last frame it was not minimized, saved in place of
     /// eframe's own snapshot: a minimized window reports a 0x0 size far off screen.
     window: Option<WindowSettings>,
@@ -45,9 +40,6 @@ impl AirDashApp {
     pub fn new(ctx: &egui::Context, backend: Backend, storage: Option<&dyn eframe::Storage>) -> Self {
         theme::install(ctx);
         theme::apply(ctx, &backend.settings().theme);
-        let tray = Tray::create(ctx, backend.poller.clone())
-            .inspect_err(|e| eprintln!("AirDash: no tray icon: {e}"))
-            .ok();
         let mut app = AirDashApp {
             auth: backend.auth_info(),
             settings: backend.settings(),
@@ -60,8 +52,6 @@ impl AirDashApp {
             error: None,
             view: View::Dashboard,
             login: LoginView::default(),
-            tray,
-            close_notice: false,
             window: storage.and_then(|s| eframe::get_value(s, WINDOW_STATE_KEY)),
         };
         app.refresh_auth();
@@ -94,9 +84,6 @@ impl AirDashApp {
                 // A rejected refresh token signs the user out in the background.
                 PollerEvent::Status(status) => {
                     let signed_out = self.auth.signed_in && !status.signed_in;
-                    if let Some(tray) = &self.tray {
-                        tray.set_paused(status.paused);
-                    }
                     self.status = status;
                     if signed_out {
                         self.signed_out();
@@ -137,60 +124,6 @@ impl AirDashApp {
     }
 }
 
-impl AirDashApp {
-    fn close_notice_ui(&mut self, ctx: &egui::Context) {
-        enum Choice {
-            KeepRunning,
-            Quit,
-        }
-        let mut choice = None;
-        let modal = egui::Modal::new(egui::Id::new("close-notice")).show(ctx, |ui| {
-            ui.set_max_width(420.0);
-            ui.heading("AirDash keeps recording");
-            ui.add_space(4.0);
-            ui.label(
-                "Closing the window keeps AirDash running in the background, so it can keep recording your readings. \
-                 Open it again from the AirDash icon in the system tray, or by launching AirDash again. \
-                 To stop it completely, choose Quit in the tray icon's menu.",
-            );
-            ui.add_space(4.0);
-            ui.weak("You can make closing the window quit AirDash in Settings, under Recording.");
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui.button("Keep running in the background").clicked() {
-                    choice = Some(Choice::KeepRunning);
-                }
-                if ui.button("Quit AirDash").clicked() {
-                    choice = Some(Choice::Quit);
-                }
-            });
-        });
-        if choice.is_none() {
-            // Escape or a click outside just keeps the window open.
-            if modal.should_close() {
-                self.close_notice = false;
-            }
-            return;
-        }
-
-        self.close_notice = false;
-        let settings = Settings { tray_notice_seen: true, ..self.settings.clone() };
-        match self.backend.save_settings(settings) {
-            Ok(saved) => self.settings = saved,
-            Err(e) => self.error = Some(e.to_string()),
-        }
-        match choice {
-            Some(Choice::KeepRunning) => ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false)),
-            _ => {
-                if let Some(tray) = &self.tray {
-                    tray.quitting.store(true, std::sync::atomic::Ordering::SeqCst);
-                }
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            }
-        }
-    }
-}
-
 impl eframe::App for AirDashApp {
     // Only the window's size and position are restored on the next launch, not scroll positions and the like.
     fn persist_egui_memory(&self) -> bool {
@@ -203,32 +136,17 @@ impl eframe::App for AirDashApp {
         }
     }
 
-    // Runs even while the window is hidden in the tray.
+    // Runs even while the window is minimized.
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if let Some(window) = frame.winit_window().filter(|w| w.is_minimized() != Some(true)) {
             self.window = Some(WindowSettings::from_window(ctx.zoom_factor(), window));
         }
-        // Runs while the window is hidden too, so poller events never pile up in the channel.
         self.handle_events();
-        let Some(tray) = &self.tray else { return };
-        let quitting = tray.quitting.load(std::sync::atomic::Ordering::SeqCst);
-        if ctx.input(|i| i.viewport().close_requested()) && self.settings.close_to_tray && !quitting {
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            if self.settings.tray_notice_seen {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-            } else {
-                // Some desktops show no tray icon, so say where AirDash went before hiding it.
-                self.close_notice = true;
-            }
-        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         if std::mem::take(&mut self.data_stale) {
             self.load_data();
-        }
-        if self.close_notice {
-            self.close_notice_ui(ui.ctx());
         }
 
         if !self.auth.signed_in {

@@ -18,8 +18,6 @@ egui-winit = { version = "0.36.2", default-features = false, features = ["serde"
 open = "5.4.4"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "query", "http2", "system-proxy"] }
 tokio = { version = "1.53.3", features = ["rt-multi-thread"] }
-# KSNI talks D-Bus directly on Linux, so no GTK main loop is needed next to winit.
-tray-icon = { version = "0.26.1", default-features = false, features = ["ksni"] }
 
 [profile.release]
 codegen-units = 1

@@ -9,11 +9,10 @@ mod format;
 mod sensors;
 mod single_instance;
 mod theme;
-mod tray;
 mod views;
 mod widgets;
 
-/// Window and tray icon.
+/// Window icon.
 pub const ICON_PNG: &[u8] = include_bytes!("../assets/icon.png");
 
 fn main() -> eframe::Result {
@@ -25,7 +24,7 @@ fn main() -> eframe::Result {
     let show_ctx = egui_ctx.clone();
     single_instance::listen(instance, move || {
         if let Some(ctx) = show_ctx.get() {
-            tray::show_window(ctx);
+            show_window(ctx);
         }
     });
     let mut viewport = egui::ViewportBuilder::default()
@@ -51,4 +50,11 @@ fn main() -> eframe::Result {
             Ok(Box::new(app::AirDashApp::new(&cc.egui_ctx, backend, cc.storage)))
         }),
     )
+}
+
+/// Bring the window to the front, e.g. when AirDash is launched again.
+fn show_window(ctx: &egui::Context) {
+    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    ctx.request_repaint();
 }

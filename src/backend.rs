@@ -105,6 +105,17 @@ impl Backend {
         Task(rx)
     }
 
+    /// Run blocking work, such as a large database query, off the UI thread and wake the UI when it finishes.
+    pub fn spawn_blocking<T: Send + 'static>(&self, work: impl FnOnce() -> T + Send + 'static) -> Task<T> {
+        let (tx, rx) = mpsc::channel();
+        let ctx = self.ctx.clone();
+        self.runtime.spawn_blocking(move || {
+            let _ = tx.send(work());
+            ctx.request_repaint();
+        });
+        Task(rx)
+    }
+
     /// Poller events received since the last call.
     pub fn events(&self) -> Vec<PollerEvent> {
         self.events.try_iter().collect()

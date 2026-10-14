@@ -5,6 +5,7 @@ use airdash_core::poller::{PollerEvent, PollerStatus};
 use airdash_core::settings::Settings;
 
 use crate::backend::{AuthInfo, Backend};
+use crate::theme;
 use crate::views::settings::{self, SettingsView};
 use crate::views::{dashboard, device::DeviceView, login::LoginView, status_bar};
 
@@ -30,7 +31,8 @@ pub struct AirDashApp {
 }
 
 impl AirDashApp {
-    pub fn new(backend: Backend) -> Self {
+    pub fn new(ctx: &egui::Context, backend: Backend) -> Self {
+        theme::apply(ctx, &backend.settings().theme);
         let mut app = AirDashApp {
             auth: backend.auth_info(),
             settings: backend.settings(),
@@ -154,6 +156,7 @@ impl eframe::App for AirDashApp {
                     View::Settings(view) => match view.ui(ui, &self.backend, &self.auth) {
                         Some(settings::Action::Back) => Some(View::Dashboard),
                         Some(settings::Action::Saved(saved)) => {
+                            theme::apply(ui.ctx(), &saved.theme);
                             self.settings = saved;
                             None
                         }

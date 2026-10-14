@@ -6,6 +6,7 @@ mod backend;
 mod chart;
 mod format;
 mod sensors;
+mod theme;
 mod views;
 mod widgets;
 
@@ -22,7 +23,7 @@ fn main() -> eframe::Result {
         options,
         Box::new(|cc| {
             let backend = backend::Backend::new(cc.egui_ctx.clone())?;
-            Ok(Box::new(app::AirDashApp::new(backend)))
+            Ok(Box::new(app::AirDashApp::new(&cc.egui_ctx, backend)))
         }),
     )
 }

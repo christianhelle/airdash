@@ -217,3 +217,142 @@ fn retry_after_seconds(headers: &HeaderMap) -> u64 {
         .find_map(|name| headers.get(*name)?.to_str().ok()?.trim().parse::<u64>().ok())
         .unwrap_or(60)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use wiremock::matchers::{header, method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    async fn client(server: &MockServer) -> ApiClient {
+        ApiClient::new(reqwest::Client::new(), server.uri())
+    }
+
+    #[tokio::test]
+    async fn lists_accounts_with_bearer_token() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/accounts"))
+            .and(header("authorization", "Bearer tok"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"accounts": [{"id": "acc-1"}]})))
+            .mount(&server)
+            .await;
+
+        let accounts = client(&server).await.accounts("tok").await.unwrap();
+        assert_eq!(accounts, vec![Account { id: "acc-1".into() }]);
+    }
+
+    #[tokio::test]
+    async fn lists_devices() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/accounts/acc-1/devices"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"devices": [{
+                "serialNumber": "2930000001", "home": "Home", "name": "Living room",
+                "type": "WAVE_PLUS", "sensors": ["radonShortTermAvg", "co2"]
+            }]})))
+            .mount(&server)
+            .await;
+
+        let devices = client(&server).await.devices("tok", "acc-1").await.unwrap();
+        assert_eq!(devices[0].serial_number, "2930000001");
+        assert_eq!(devices[0].device_type, "WAVE_PLUS");
+        assert_eq!(devices[0].home.as_deref(), Some("Home"));
+        assert_eq!(devices[0].sensors, vec!["radonShortTermAvg", "co2"]);
+    }
+
+    #[tokio::test]
+    async fn follows_sensor_pages_and_skips_null_sensors() {
+        let server = MockServer::start().await;
+        Mock::given(path("/v1/accounts/acc-1/sensors"))
+            .and(query_param("pageNumber", "1"))
+            .and(query_param("unit", "metric"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "results": [{"serialNumber": "A", "recorded": "2026-10-14T10:00:00Z", "batteryPercentage": 90,
+                             "sensors": [{"sensorType": "co2", "value": 612.0, "unit": "ppm"}, null]}],
+                "hasNext": true, "totalPages": 2
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(path("/v1/accounts/acc-1/sensors"))
+            .and(query_param("pageNumber", "2"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("X-RateLimit-Limit", "120")
+                    .insert_header("X-RateLimit-Remaining", "118")
+                    .set_body_json(json!({"results": [{"serialNumber": "B", "sensors": null}], "hasNext": false})),
+            )
+            .mount(&server)
+            .await;
+
+        let (results, rate_limit) = client(&server).await.sensors("tok", "acc-1", Unit::Metric).await.unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].sensors, vec![SensorValue { sensor_type: "co2".into(), value: 612.0, unit: "ppm".into() }]);
+        assert_eq!(results[0].battery_percentage, Some(90));
+        assert!(results[1].sensors.is_empty());
+        assert_eq!(rate_limit.limit, Some(120));
+        assert_eq!(rate_limit.remaining, Some(118));
+    }
+
+    #[tokio::test]
+    async fn maps_401_to_unauthorized() {
+        let server = MockServer::start().await;
+        Mock::given(path("/v1/accounts")).respond_with(ResponseTemplate::new(401)).mount(&server).await;
+
+        let err = client(&server).await.accounts("tok").await.unwrap_err();
+        assert!(matches!(err, Error::Unauthorized));
+    }
+
+    #[tokio::test]
+    async fn maps_429_to_rate_limited_with_retry_after() {
+        let server = MockServer::start().await;
+        Mock::given(path("/v1/accounts/acc-1/sensors"))
+            .respond_with(ResponseTemplate::new(429).insert_header("X-RateLimit-Retry-After", "321"))
+            .mount(&server)
+            .await;
+
+        let err = client(&server).await.sensors("tok", "acc-1", Unit::Metric).await.unwrap_err();
+        assert!(matches!(err, Error::RateLimited(321)));
+    }
+
+    #[tokio::test]
+    async fn surfaces_api_error_message() {
+        let server = MockServer::start().await;
+        Mock::given(path("/v1/accounts"))
+            .respond_with(ResponseTemplate::new(500).set_body_json(json!({"message": "boom"})))
+            .mount(&server)
+            .await;
+
+        let err = client(&server).await.accounts("tok").await.unwrap_err();
+        assert!(matches!(err, Error::Api { status: 500, ref message } if message == "boom"));
+    }
+
+    #[tokio::test]
+    async fn remote_control_404_means_no_state() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/accounts/acc-1/devices/R1/remote-control"))
+            .respond_with(ResponseTemplate::new(404).set_body_json(json!({"message": "not synced"})))
+            .mount(&server)
+            .await;
+
+        let state = client(&server).await.remote_control("tok", "acc-1", "R1").await.unwrap();
+        assert_eq!(state, None);
+    }
+
+    #[tokio::test]
+    async fn sets_remote_control_mode() {
+        let server = MockServer::start().await;
+        Mock::given(method("PUT"))
+            .and(path("/v1/accounts/acc-1/devices/R1/remote-control"))
+            .and(wiremock::matchers::body_json(json!({"mode": "MANUAL", "fanSpeed": 3})))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let state = RemoteControlState { mode: "MANUAL".into(), fan_speed: Some(3) };
+        client(&server).await.set_remote_control("tok", "acc-1", "R1", &state).await.unwrap();
+    }
+}

@@ -24,6 +24,8 @@ pub struct AirDashApp {
     devices: Vec<Device>,
     readings: Vec<DeviceSensors>,
     loaded: bool,
+    /// New devices or readings arrived since the dashboard data was last loaded.
+    data_stale: bool,
     /// Bumped on every new batch of readings so open charts reload.
     readings_version: u64,
     error: Option<String>,
@@ -57,6 +59,7 @@ impl AirDashApp {
             devices: Vec::new(),
             readings: Vec::new(),
             loaded: false,
+            data_stale: false,
             readings_version: 0,
             error: None,
             view: View::Dashboard,
@@ -104,9 +107,10 @@ impl AirDashApp {
                         self.signed_out();
                     }
                 }
-                PollerEvent::DevicesUpdated => self.load_data(),
+                // Reloaded once on the next drawn frame, however many updates arrive while the window is hidden.
+                PollerEvent::DevicesUpdated => self.data_stale = true,
                 PollerEvent::ReadingsUpdated => {
-                    self.load_data();
+                    self.data_stale = true;
                     self.readings_version += 1;
                 }
             }
@@ -215,6 +219,8 @@ impl eframe::App for AirDashApp {
     // Runs even while the window is hidden in the tray.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.minimized = ctx.input(|i| i.viewport().minimized.unwrap_or(false));
+        // Runs while the window is hidden too, so poller events never pile up in the channel.
+        self.handle_events();
         let Some(tray) = &self.tray else { return };
         let quitting = tray.quitting.load(std::sync::atomic::Ordering::SeqCst);
         if ctx.input(|i| i.viewport().close_requested()) && self.settings.close_to_tray && !quitting {
@@ -229,7 +235,9 @@ impl eframe::App for AirDashApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        self.handle_events();
+        if std::mem::take(&mut self.data_stale) {
+            self.load_data();
+        }
         if self.close_notice {
             self.close_notice_ui(ui.ctx());
         }

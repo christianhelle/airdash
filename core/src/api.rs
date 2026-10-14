@@ -68,14 +68,6 @@ pub struct DeviceSensors {
     pub battery_percentage: Option<i32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RemoteControlState {
-    pub mode: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fan_speed: Option<u8>,
-}
-
 /// Rate-limit headers reported by the sensors endpoint.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -166,22 +158,6 @@ impl ApiClient {
             }
         }
         Ok((results, rate_limit))
-    }
-
-    /// Last mode reported by a Renew air purifier, or `None` if it has never synced one.
-    pub async fn remote_control(&self, token: &str, account_id: &str, serial: &str) -> Result<Option<RemoteControlState>> {
-        let url = self.url(&format!("/v1/accounts/{account_id}/devices/{serial}/remote-control"));
-        match self.send(self.http.get(url), token).await {
-            Ok(resp) => Ok(Some(resp.json().await?)),
-            Err(Error::Api { status: 404, .. }) => Ok(None),
-            Err(e) => Err(e),
-        }
-    }
-
-    pub async fn set_remote_control(&self, token: &str, account_id: &str, serial: &str, state: &RemoteControlState) -> Result<()> {
-        let url = self.url(&format!("/v1/accounts/{account_id}/devices/{serial}/remote-control"));
-        self.send(self.http.put(url).json(state), token).await?;
-        Ok(())
     }
 
     fn url(&self, path: &str) -> String {
@@ -326,33 +302,5 @@ mod tests {
 
         let err = client(&server).await.accounts("tok").await.unwrap_err();
         assert!(matches!(err, Error::Api { status: 500, ref message } if message == "boom"));
-    }
-
-    #[tokio::test]
-    async fn remote_control_404_means_no_state() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/v1/accounts/acc-1/devices/R1/remote-control"))
-            .respond_with(ResponseTemplate::new(404).set_body_json(json!({"message": "not synced"})))
-            .mount(&server)
-            .await;
-
-        let state = client(&server).await.remote_control("tok", "acc-1", "R1").await.unwrap();
-        assert_eq!(state, None);
-    }
-
-    #[tokio::test]
-    async fn sets_remote_control_mode() {
-        let server = MockServer::start().await;
-        Mock::given(method("PUT"))
-            .and(path("/v1/accounts/acc-1/devices/R1/remote-control"))
-            .and(wiremock::matchers::body_json(json!({"mode": "MANUAL", "fanSpeed": 3})))
-            .respond_with(ResponseTemplate::new(200))
-            .expect(1)
-            .mount(&server)
-            .await;
-
-        let state = RemoteControlState { mode: "MANUAL".into(), fan_speed: Some(3) };
-        client(&server).await.set_remote_control("tok", "acc-1", "R1", &state).await.unwrap();
     }
 }

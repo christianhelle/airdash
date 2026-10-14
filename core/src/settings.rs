@@ -8,17 +8,11 @@ use crate::api::Unit;
 use crate::auth::{DEFAULT_REDIRECT_PORT, DEFAULT_SCOPE};
 use crate::error::{Error, Result};
 
-pub const MIN_POLL_MINUTES: u32 = 2;
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     /// Display units. Readings are always fetched and stored in metric.
     pub unit: Unit,
-    pub poll_interval_minutes: u32,
-    pub close_to_tray: bool,
-    /// Whether the user has been told that closing the window keeps AirDash running in the tray.
-    pub tray_notice_seen: bool,
     /// "system", "light" or "dark".
     pub theme: String,
     /// An Airthings OAuth client (authorization code flow) to sign in through the browser with.
@@ -34,9 +28,6 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             unit: Unit::Metric,
-            poll_interval_minutes: 5,
-            close_to_tray: true,
-            tray_notice_seen: false,
             theme: "system".into(),
             oauth_client_id: None,
             oauth_client_secret: None,
@@ -66,7 +57,6 @@ impl Settings {
 
     /// Clamp values the UI or a hand-edited file may have set out of range.
     pub fn normalized(mut self) -> Self {
-        self.poll_interval_minutes = self.poll_interval_minutes.max(MIN_POLL_MINUTES);
         if self.redirect_port == 0 {
             self.redirect_port = DEFAULT_REDIRECT_PORT;
         }
@@ -103,7 +93,7 @@ mod tests {
     fn round_trips_through_file() {
         let dir = std::env::temp_dir().join(format!("airdash-settings-rt-{}", std::process::id()));
         let path = dir.join("settings.json");
-        let settings = Settings { unit: Unit::Imperial, poll_interval_minutes: 10, ..Default::default() };
+        let settings = Settings { unit: Unit::Imperial, theme: "dark".into(), ..Default::default() };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);
         std::fs::remove_dir_all(dir).unwrap();
@@ -113,21 +103,18 @@ mod tests {
     fn partial_json_fills_in_defaults() {
         let settings: Settings = serde_json::from_str(r#"{"theme": "dark"}"#).unwrap();
         assert_eq!(settings.theme, "dark");
-        assert_eq!(settings.poll_interval_minutes, 5);
-        assert!(!settings.tray_notice_seen);
+        assert_eq!(settings.unit, Unit::Metric);
     }
 
     #[test]
     fn normalizes_out_of_range_values() {
         let settings = Settings {
-            poll_interval_minutes: 0,
             redirect_port: 0,
             scope: " ".into(),
             oauth_client_id: Some("  ".into()),
             ..Default::default()
         }
         .normalized();
-        assert_eq!(settings.poll_interval_minutes, MIN_POLL_MINUTES);
         assert_eq!(settings.redirect_port, DEFAULT_REDIRECT_PORT);
         assert_eq!(settings.scope, DEFAULT_SCOPE);
         assert_eq!(settings.oauth_client_id, None);

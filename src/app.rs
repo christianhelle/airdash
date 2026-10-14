@@ -1,41 +1,36 @@
-//! The egui application: picks the view and routes backend events to it.
+//! The egui application: picks the view and keeps the dashboard data fresh.
 
-use airdash_core::api::{Device, DeviceSensors};
-use airdash_core::poller::{PollerEvent, PollerStatus};
+use airdash_core::api::Device;
+use airdash_core::error::{Error, Result};
+use airdash_core::refresh::Snapshot;
 use airdash_core::settings::Settings;
+use airdash_core::state::AppState;
 use egui_winit::WindowSettings;
 
-use crate::backend::{AuthInfo, Backend};
+use crate::backend::{AuthInfo, Backend, Task};
 use crate::theme;
-use crate::tray::Tray;
 use crate::views::settings::{self, SettingsView};
-use crate::views::{dashboard, device::DeviceView, login::LoginView, status_bar};
+use crate::views::{dashboard, login::LoginView, status_bar};
 
 enum View {
     Dashboard,
-    Device(DeviceView),
-    Settings(SettingsView),
+    Settings(Box<SettingsView>),
 }
 
 pub struct AirDashApp {
     backend: Backend,
     auth: AuthInfo,
     settings: Settings,
-    status: PollerStatus,
+    status: status_bar::Status,
+    /// The refresh in flight, if any.
+    refresh: Option<Task<Result<Snapshot>>>,
+    /// Restored at launch and saved on every change.
+    state: AppState,
+    /// The state's devices in the user's order.
     devices: Vec<Device>,
-    readings: Vec<DeviceSensors>,
-    loaded: bool,
-    /// New devices or readings arrived since the dashboard data was last loaded.
-    data_stale: bool,
-    /// Bumped on every new batch of readings so open charts reload.
-    readings_version: u64,
     error: Option<String>,
     view: View,
     login: LoginView,
-    /// `None` when the platform has no tray, in which case closing the window quits.
-    tray: Option<Tray>,
-    /// Explaining, the first time the window is closed, that AirDash keeps running in the tray.
-    close_notice: bool,
     /// The window's size and position as of the last frame it was not minimized, saved in place of
     /// eframe's own snapshot: a minimized window reports a 0x0 size far off screen.
     window: Option<WindowSettings>,
@@ -48,79 +43,85 @@ impl AirDashApp {
     pub fn new(ctx: &egui::Context, backend: Backend, storage: Option<&dyn eframe::Storage>) -> Self {
         theme::install(ctx);
         theme::apply(ctx, &backend.settings().theme);
-        let tray = Tray::create(ctx, backend.poller.clone())
-            .inspect_err(|e| eprintln!("AirDash: no tray icon: {e}"))
-            .ok();
         let mut app = AirDashApp {
             auth: backend.auth_info(),
             settings: backend.settings(),
-            status: backend.poller.status(),
+            status: status_bar::Status::default(),
+            refresh: None,
+            state: backend.load_state(),
             backend,
             devices: Vec::new(),
-            readings: Vec::new(),
-            loaded: false,
-            data_stale: false,
-            readings_version: 0,
             error: None,
             view: View::Dashboard,
             login: LoginView::default(),
-            tray,
-            close_notice: false,
             window: storage.and_then(|s| eframe::get_value(s, WINDOW_STATE_KEY)),
         };
+        app.restore_state();
         app.refresh_auth();
         app
     }
 
+    /// Show the last known state right away; a refresh follows once it is older than the refresh interval.
+    fn restore_state(&mut self) {
+        self.devices = self.state.devices();
+        self.status.last_refresh = self.state.last_refresh;
+        self.status.last_attempt = self.state.last_refresh;
+        self.status.rate_limit = self.state.snapshot.rate_limit.clone();
+    }
+
+    fn save_state(&mut self) {
+        self.devices = self.state.devices();
+        self.error = self.backend.save_state(&self.state).err().map(|e| e.to_string());
+    }
+
     fn refresh_auth(&mut self) {
         self.auth = self.backend.auth_info();
-        if self.auth.signed_in {
-            self.load_data();
-        }
     }
 
-    fn load_data(&mut self) {
-        let store = &self.backend.store;
-        match store.devices().and_then(|d| Ok((d, store.latest()?))) {
-            Ok((devices, readings)) => {
-                self.devices = devices;
-                self.readings = readings;
-                self.error = None;
-            }
-            Err(e) => self.error = Some(e.to_string()),
-        }
-        self.loaded = true;
+    fn start_refresh(&mut self) {
+        self.status.refreshing = true;
+        self.status.last_attempt = Some(chrono::Utc::now().timestamp());
+        self.refresh = Some(self.backend.refresh());
     }
 
-    fn handle_events(&mut self) {
-        for event in self.backend.events() {
-            match event {
-                // A rejected refresh token signs the user out in the background.
-                PollerEvent::Status(status) => {
-                    let signed_out = self.auth.signed_in && !status.signed_in;
-                    if let Some(tray) = &self.tray {
-                        tray.set_paused(status.paused);
-                    }
-                    self.status = status;
-                    if signed_out {
-                        self.signed_out();
-                    }
+    /// Start a refresh when one is due, and pick up the result of one that finished.
+    fn update_refresh(&mut self, ctx: &egui::Context) {
+        if let Some(result) = self.refresh.as_ref().and_then(Task::ready) {
+            self.refresh = None;
+            self.status.refreshing = false;
+            match result {
+                Ok(snapshot) => {
+                    self.status.last_refresh = self.status.last_attempt;
+                    self.status.last_error = None;
+                    self.status.rate_limit = snapshot.rate_limit.clone();
+                    self.state.snapshot = snapshot;
+                    self.state.last_refresh = self.status.last_refresh;
+                    self.save_state();
                 }
-                // Reloaded once on the next drawn frame, however many updates arrive while the window is hidden.
-                PollerEvent::DevicesUpdated => self.data_stale = true,
-                PollerEvent::ReadingsUpdated => {
-                    self.data_stale = true;
-                    self.readings_version += 1;
-                }
+                // A rejected refresh token signs the user out.
+                Err(Error::Unauthorized) if !self.backend.session.is_signed_in() => self.signed_out(),
+                Err(e) => self.status.last_error = Some(e.to_string()),
             }
+        }
+        if !self.auth.signed_in {
+            return;
+        }
+        let now = chrono::Utc::now().timestamp();
+        if self.status.refresh_due(now) {
+            self.start_refresh();
+        }
+        if let Some(next) = self.status.next_refresh() {
+            ctx.request_repaint_after(std::time::Duration::from_secs((next - now).max(1) as u64));
         }
     }
 
     fn signed_out(&mut self) {
         self.view = View::Dashboard;
-        self.devices.clear();
-        self.readings.clear();
-        self.loaded = false;
+        self.refresh = None;
+        self.status = status_bar::Status::default();
+        // The next account sees only its own devices. Their order is kept, as it is per device.
+        self.state = AppState { device_order: std::mem::take(&mut self.state.device_order), ..AppState::default() };
+        self.save_state();
         self.refresh_auth();
     }
 
@@ -135,66 +136,12 @@ impl AirDashApp {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let open = matches!(self.view, View::Settings(_));
                     if ui.selectable_label(open, "Settings").clicked() && !open {
-                        self.view = View::Settings(SettingsView::new(&self.settings));
+                        self.view = View::Settings(Box::new(SettingsView::new(&self.settings)));
                     }
                 });
             });
             ui.add_space(6.0);
         });
-    }
-}
-
-impl AirDashApp {
-    fn close_notice_ui(&mut self, ctx: &egui::Context) {
-        enum Choice {
-            KeepRunning,
-            Quit,
-        }
-        let mut choice = None;
-        let modal = egui::Modal::new(egui::Id::new("close-notice")).show(ctx, |ui| {
-            ui.set_max_width(420.0);
-            ui.heading("AirDash keeps recording");
-            ui.add_space(4.0);
-            ui.label(
-                "Closing the window keeps AirDash running in the background, so it can keep recording your readings. \
-                 Open it again from the AirDash icon in the system tray, or by launching AirDash again. \
-                 To stop it completely, choose Quit in the tray icon's menu.",
-            );
-            ui.add_space(4.0);
-            ui.weak("You can make closing the window quit AirDash in Settings, under Recording.");
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui.button("Keep running in the background").clicked() {
-                    choice = Some(Choice::KeepRunning);
-                }
-                if ui.button("Quit AirDash").clicked() {
-                    choice = Some(Choice::Quit);
-                }
-            });
-        });
-        if choice.is_none() {
-            // Escape or a click outside just keeps the window open.
-            if modal.should_close() {
-                self.close_notice = false;
-            }
-            return;
-        }
-
-        self.close_notice = false;
-        let settings = Settings { tray_notice_seen: true, ..self.settings.clone() };
-        match self.backend.save_settings(settings) {
-            Ok(saved) => self.settings = saved,
-            Err(e) => self.error = Some(e.to_string()),
-        }
-        match choice {
-            Some(Choice::KeepRunning) => ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false)),
-            _ => {
-                if let Some(tray) = &self.tray {
-                    tray.quitting.store(true, std::sync::atomic::Ordering::SeqCst);
-                }
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            }
-        }
     }
 }
 
@@ -204,40 +151,27 @@ impl eframe::App for AirDashApp {
         false
     }
 
+    // Save the window's size and position soon after every move or resize, not only at exit. eframe writes the
+    // file only when something changed, so idle seconds cost nothing.
+    fn auto_save_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(1)
+    }
+
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         if let Some(window) = &self.window {
             eframe::set_value(storage, WINDOW_STATE_KEY, window);
         }
     }
 
-    // Runs even while the window is hidden in the tray.
+    // Runs even while the window is minimized.
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if let Some(window) = frame.winit_window().filter(|w| w.is_minimized() != Some(true)) {
             self.window = Some(WindowSettings::from_window(ctx.zoom_factor(), window));
         }
-        // Runs while the window is hidden too, so poller events never pile up in the channel.
-        self.handle_events();
-        let Some(tray) = &self.tray else { return };
-        let quitting = tray.quitting.load(std::sync::atomic::Ordering::SeqCst);
-        if ctx.input(|i| i.viewport().close_requested()) && self.settings.close_to_tray && !quitting {
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            if self.settings.tray_notice_seen {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-            } else {
-                // Some desktops show no tray icon, so say where AirDash went before hiding it.
-                self.close_notice = true;
-            }
-        }
+        self.update_refresh(ctx);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        if std::mem::take(&mut self.data_stale) {
-            self.load_data();
-        }
-        if self.close_notice {
-            self.close_notice_ui(ui.ctx());
-        }
-
         if !self.auth.signed_in {
             egui::CentralPanel::default().show(ui, |ui| {
                 if self.login.ui(ui, &self.backend, &self.auth) {
@@ -251,7 +185,9 @@ impl eframe::App for AirDashApp {
         self.nav(ui);
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.add_space(4.0);
-            status_bar::ui(ui, &self.status, &self.backend.poller);
+            if status_bar::ui(ui, &self.status) && !self.status.refreshing {
+                self.start_refresh();
+            }
             ui.add_space(4.0);
         });
         // Keep relative times such as "2 min ago" current.
@@ -265,11 +201,6 @@ impl eframe::App for AirDashApp {
                 let mut signed_out = false;
                 let mut reordered = None;
                 let next = match &mut self.view {
-                    View::Device(view) => match self.devices.iter().find(|d| d.serial_number == view.serial) {
-                        Some(device) => view.ui(ui, &self.backend, device, unit, self.readings_version).then_some(View::Dashboard),
-                        // The device was removed from the account.
-                        None => Some(View::Dashboard),
-                    },
                     View::Settings(view) => match view.ui(ui, &self.backend, &self.auth) {
                         Some(settings::Action::Back) => Some(View::Dashboard),
                         Some(settings::Action::Saved(saved)) => {
@@ -283,14 +214,11 @@ impl eframe::App for AirDashApp {
                         }
                         None => None,
                     },
-                    View::Dashboard => match dashboard::ui(ui, &self.devices, &self.readings, self.loaded, unit) {
-                        Some(dashboard::Action::Open(serial)) => Some(View::Device(DeviceView::new(serial))),
-                        Some(dashboard::Action::Reorder(order)) => {
-                            reordered = Some(order);
-                            None
-                        }
-                        None => None,
-                    },
+                    View::Dashboard => {
+                        let loaded = self.status.last_refresh.is_some();
+                        reordered = dashboard::ui(ui, &self.devices, &self.state.snapshot.readings, loaded, unit);
+                        None
+                    }
                 };
                 if let Some(next) = next {
                     self.view = next;
@@ -299,10 +227,8 @@ impl eframe::App for AirDashApp {
                     self.signed_out();
                 }
                 if let Some(order) = reordered {
-                    match self.backend.store.set_device_order(&order) {
-                        Ok(()) => self.load_data(),
-                        Err(e) => self.error = Some(e.to_string()),
-                    }
+                    self.state.device_order = order;
+                    self.save_state();
                 }
             });
         });

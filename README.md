@@ -13,19 +13,14 @@ Written in Rust with [egui](https://github.com/emilk/egui). There is no server: 
 - Every device on your account, grouped by home, with live sensor values (radon, CO₂, VOC, PM, humidity,
   temperature, pressure and more). Each value is rated Good, Fair or Poor using Airthings' thresholds.
 - Drag device cards to put them in the order you like.
-- History charts covering 24 hours, 7 days, 30 days, 1 year or everything, with CSV export.
-- Mode and fan-speed control for Airthings Renew air purifiers.
+- Refreshes every 5 minutes while open, or right away with Refresh in the status bar.
+- Starts instantly: the last known readings, device order and window size are restored at launch.
 - Metric or imperial units, plus light, dark or system theme.
-- Keeps recording in the system tray while the window is closed.
 - Credentials are stored in the OS keychain (Windows Credential Manager, macOS Keychain, Secret Service on Linux).
 
-### How history works
-
-The Consumer API only returns the **latest** reading for each device. AirDash therefore polls every 5 minutes
-by default (Airthings allows 120 requests per hour) and saves each reading to a local SQLite database. Charts
-start empty and fill in for as long as AirDash is running, so keep it in the tray to record continuously.
-
-To find the data folder, open Settings → Local data → Open folder.
+AirDash only shows the latest reading of each device and keeps no history. The dashboard is saved to
+`state.json` in the app's data folder after every refresh and every rearrangement, so the next launch shows it
+at once and refreshes only when it is more than 5 minutes old.
 
 ## Signing in
 
@@ -56,23 +51,21 @@ cargo build --release
 
 Release builds for Windows, macOS and Linux are attached to a draft GitHub release when a `v*` tag is pushed.
 
-On Linux the tray icon uses the StatusNotifierItem D-Bus protocol, so GTK is not needed.
-
 ### Layout
 
 | Path | What |
 | --- | --- |
 | `src/backend.rs` | Starts the core services and hands background results to the UI |
-| `src/views/` | Sign-in, dashboard, device, settings and status bar |
-| `src/chart.rs`, `src/widgets.rs` | History charts, cards, level badges and sensor tiles |
+| `src/views/` | Sign-in, dashboard, settings and status bar |
+| `src/widgets.rs` | Cards, level badges and sensor tiles |
 | `src/sensors.rs` | Sensor labels, units, conversions and air-quality levels |
-| `src/tray.rs`, `src/single_instance.rs` | Tray icon and the single running instance |
+| `src/single_instance.rs` | The single running instance |
 | `core/src/api.rs` | Typed Consumer API client |
 | `core/src/auth.rs` | OAuth (PKCE and loopback redirect) and client-credentials token requests |
 | `core/src/session.rs` | Access-token caching, refresh, the retry on 401 and the browser sign-in flow |
 | `core/src/secrets.rs` | Keychain credential storage |
-| `core/src/store.rs` | SQLite reading history and device order |
-| `core/src/poller.rs` | Background polling that respects rate limits |
+| `core/src/refresh.rs` | Fetching the devices and their latest readings |
+| `core/src/state.rs` | The saved dashboard state and device order |
 
 ## License
 

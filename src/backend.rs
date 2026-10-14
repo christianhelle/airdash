@@ -6,14 +6,14 @@ use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use airdash_core::api::{self, ApiClient, RemoteControlState};
+use airdash_core::api::{self, ApiClient};
 use airdash_core::auth::{self, AuthClient, Credentials};
 use airdash_core::error::{Error, Result};
-use airdash_core::poller::{Poller, PollerEvent};
+use airdash_core::refresh::{self, Snapshot};
 use airdash_core::secrets::KeychainStore;
 use airdash_core::session::Session;
 use airdash_core::settings::Settings;
-use airdash_core::store::Store;
+use airdash_core::state::AppState;
 use tokio::runtime::Runtime;
 
 /// The folders the earlier Tauri version used, so existing settings, history and sign-in carry over.
@@ -47,12 +47,9 @@ pub struct Backend {
     runtime: Runtime,
     ctx: egui::Context,
     pub session: Arc<Session>,
-    pub store: Arc<Store>,
-    pub poller: Arc<Poller>,
     settings: Arc<RwLock<Settings>>,
     settings_path: PathBuf,
-    pub data_dir: PathBuf,
-    events: Receiver<PollerEvent>,
+    state_path: PathBuf,
 }
 
 impl Backend {
@@ -64,7 +61,6 @@ impl Backend {
 
         let settings_path = config_dir.join("settings.json");
         let settings = Arc::new(RwLock::new(Settings::load(&settings_path)));
-        let store = Arc::new(Store::open(&data_dir.join("airdash.db"))?);
 
         let http = reqwest::Client::builder()
             .user_agent(concat!("AirDash/", env!("CARGO_PKG_VERSION")))
@@ -76,22 +72,10 @@ impl Backend {
             Arc::new(KeychainStore::new(data_dir.join("credentials.json"))),
         ));
 
-        let (tx, events) = mpsc::channel();
-        let repaint = ctx.clone();
-        let poller = Arc::new(Poller::new(
-            session.clone(),
-            store.clone(),
-            settings.clone(),
-            Box::new(move |event| {
-                let _ = tx.send(event);
-                repaint.request_repaint();
-            }),
-        ));
-
         let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
-        runtime.spawn(poller.clone().run());
 
-        Ok(Backend { runtime, ctx, session, store, poller, settings, settings_path, data_dir, events })
+        let state_path = data_dir.join("state.json");
+        Ok(Backend { runtime, ctx, session, settings, settings_path, state_path })
     }
 
     /// Run `future` on the runtime and wake the UI when it finishes.
@@ -105,20 +89,19 @@ impl Backend {
         Task(rx)
     }
 
-    /// Run blocking work, such as a large database query, off the UI thread and wake the UI when it finishes.
-    pub fn spawn_blocking<T: Send + 'static>(&self, work: impl FnOnce() -> T + Send + 'static) -> Task<T> {
-        let (tx, rx) = mpsc::channel();
-        let ctx = self.ctx.clone();
-        self.runtime.spawn_blocking(move || {
-            let _ = tx.send(work());
-            ctx.request_repaint();
-        });
-        Task(rx)
+    /// Fetch the devices and their latest readings.
+    pub fn refresh(&self) -> Task<Result<Snapshot>> {
+        let session = self.session.clone();
+        self.spawn(async move { refresh::fetch(&session).await })
     }
 
-    /// Poller events received since the last call.
-    pub fn events(&self) -> Vec<PollerEvent> {
-        self.events.try_iter().collect()
+    /// The dashboard as it was when AirDash last saved it.
+    pub fn load_state(&self) -> AppState {
+        AppState::load(&self.state_path)
+    }
+
+    pub fn save_state(&self, state: &AppState) -> Result<()> {
+        state.save(&self.state_path)
     }
 
     pub fn settings(&self) -> Settings {
@@ -148,7 +131,7 @@ impl Backend {
     /// Sign in through the Airthings login page in the system browser.
     pub fn sign_in_oauth(&self) -> Task<Result<()>> {
         let settings = self.settings();
-        let (session, poller) = (self.session.clone(), self.poller.clone());
+        let session = self.session.clone();
         self.spawn(async move {
             let (client_id, client_secret) = settings
                 .oauth_client()
@@ -157,9 +140,7 @@ impl Backend {
                 .sign_in_oauth(client_id, client_secret, settings.redirect_port, |url| {
                     open::that_detached(url).map_err(|e| Error::Other(format!("could not open the browser: {e}")))
                 })
-                .await?;
-            poller.reset();
-            Ok(())
+                .await
         })
     }
 
@@ -167,65 +148,23 @@ impl Backend {
     pub fn sign_in_client_credentials(&self, client_id: &str, client_secret: &str) -> Task<Result<()>> {
         let (client_id, client_secret) = (client_id.trim().to_owned(), client_secret.trim().to_owned());
         let scope = self.settings().scope;
-        let (session, poller) = (self.session.clone(), self.poller.clone());
+        let session = self.session.clone();
         self.spawn(async move {
             if client_id.is_empty() || client_secret.is_empty() {
                 return Err(Error::Other("enter both the client ID and the client secret".into()));
             }
-            session.sign_in(Credentials::ClientCredentials { client_id, client_secret, scope }).await?;
-            poller.reset();
-            Ok(())
+            session.sign_in(Credentials::ClientCredentials { client_id, client_secret, scope }).await
         })
     }
 
     pub fn sign_out(&self) -> Task<()> {
-        let (session, poller) = (self.session.clone(), self.poller.clone());
-        self.spawn(async move {
-            session.sign_out().await;
-            poller.reset();
-        })
-    }
-
-    pub fn remote_control(&self, serial: &str) -> Task<Result<Option<RemoteControlState>>> {
-        let (session, serial) = (self.session.clone(), serial.to_owned());
-        self.spawn(async move { session.remote_control(&serial).await })
-    }
-
-    pub fn set_remote_control(&self, serial: &str, state: RemoteControlState) -> Task<Result<()>> {
-        let (session, serial) = (self.session.clone(), serial.to_owned());
-        self.spawn(async move { session.set_remote_control(&serial, &state).await })
-    }
-
-    /// Ask where to save, then write the device's readings as CSV. Gives the path, or `None` if cancelled.
-    pub fn export_csv(&self, serial: &str, file_name: String, from: i64, to: i64) -> Task<Result<Option<String>>> {
-        // Created here on the UI thread, which macOS requires for dialogs.
-        let dialog = rfd::AsyncFileDialog::new().set_file_name(file_name).add_filter("CSV", &["csv"]).save_file();
-        let (store, serial) = (self.store.clone(), serial.to_owned());
-        self.spawn(async move {
-            let Some(file) = dialog.await else { return Ok(None) };
-            // A year or more of readings takes a while to query and format, so keep it off the async workers too.
-            let csv = tokio::task::spawn_blocking(move || store.export_csv(&serial, from, to))
-                .await
-                .map_err(|e| Error::Other(format!("could not build the CSV: {e}")))??;
-            let path = file.path().to_owned();
-            std::fs::write(&path, csv).map_err(|e| Error::Other(format!("could not write {}: {e}", path.display())))?;
-            Ok(Some(path.display().to_string()))
-        })
-    }
-
-    pub fn clear_local_data(&self) -> Result<()> {
-        self.store.clear()?;
-        self.poller.refresh_now();
-        Ok(())
+        let session = self.session.clone();
+        self.spawn(async move { session.sign_out().await })
     }
 
     pub fn open_url(&self, url: &str) {
         if url.starts_with("https://") {
             let _ = open::that_detached(url);
         }
-    }
-
-    pub fn open_data_dir(&self) {
-        let _ = open::that_detached(&self.data_dir);
     }
 }

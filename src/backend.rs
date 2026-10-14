@@ -16,7 +16,7 @@ use airdash_core::settings::Settings;
 use airdash_core::store::Store;
 use tokio::runtime::Runtime;
 
-/// Same folders as the Tauri app, so both share settings, history and sign-in.
+/// The folders the earlier Tauri version used, so existing settings, history and sign-in carry over.
 const APP_IDENTIFIER: &str = "com.christianhelle.airdash";
 
 /// The result of background work, picked up by the UI on a later frame.

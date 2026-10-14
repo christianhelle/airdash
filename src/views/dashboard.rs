@@ -144,6 +144,8 @@ fn device_card(ui: &mut Ui, device: &Device, home: &str, reading: Option<&Device
         })
         .response;
 
+    // Screen readers announce the card as a button named after the device.
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, name));
     response.dnd_set_drag_payload(DraggedDevice { serial: device.serial_number.clone(), home: home.to_owned() });
     let accent = ui.visuals().hyperlink_color;
     let rect = response.rect;

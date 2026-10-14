@@ -30,10 +30,13 @@ jobs:
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: |
+            src-tauri
+            core
 
       - run: npm ci
       - run: npm run check
       - run: npm test
       - run: npm run build
       - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: cargo test --manifest-path core/Cargo.toml

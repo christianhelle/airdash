@@ -229,3 +229,121 @@ pub async fn wait_for_code(listener: TcpListener, expected_state: &str) -> Resul
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{body_json, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn client_credentials_sends_scope_list() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/token"))
+            .and(body_json(json!({
+                "grant_type": "client_credentials", "client_id": "id", "client_secret": "secret",
+                "scope": ["read:device:current_values"]
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"access_token": "a", "expires_in": 10800, "token_type": "Bearer"})))
+            .mount(&server)
+            .await;
+
+        let auth = AuthClient::new(reqwest::Client::new(), format!("{}/v1/token", server.uri()));
+        let token = auth.client_credentials("id", "secret", DEFAULT_SCOPE).await.unwrap();
+        assert_eq!(token, TokenResponse { access_token: "a".into(), expires_in: Some(10800), refresh_token: None });
+    }
+
+    #[tokio::test]
+    async fn exchanges_code_with_verifier_and_without_secret_for_public_clients() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_json(json!({
+                "grant_type": "authorization_code", "client_id": "id", "code": "c",
+                "redirect_uri": "http://127.0.0.1:53682/callback", "code_verifier": "v"
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"access_token": "a", "refresh_token": "r", "expires_in": 3600})))
+            .mount(&server)
+            .await;
+
+        let auth = AuthClient::new(reqwest::Client::new(), server.uri());
+        let token = auth.exchange_code("id", None, "c", &redirect_uri(53682), "v").await.unwrap();
+        assert_eq!(token.refresh_token.as_deref(), Some("r"));
+    }
+
+    #[tokio::test]
+    async fn refresh_includes_secret_when_present() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_json(json!({"grant_type": "refresh_token", "client_id": "id", "client_secret": "s", "refresh_token": "r"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"access_token": "a2"})))
+            .mount(&server)
+            .await;
+
+        let auth = AuthClient::new(reqwest::Client::new(), server.uri());
+        let creds = Credentials::RefreshToken { client_id: "id".into(), client_secret: Some("s".into()), refresh_token: "r".into() };
+        assert_eq!(auth.token_for(&creds).await.unwrap().access_token, "a2");
+    }
+
+    #[tokio::test]
+    async fn rejected_sign_in_reports_airthings_message() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(json!({"error": "invalid_client", "error_description": "Bad client"})))
+            .mount(&server)
+            .await;
+
+        let auth = AuthClient::new(reqwest::Client::new(), server.uri());
+        let err = auth.client_credentials("id", "wrong", DEFAULT_SCOPE).await.unwrap_err();
+        assert_eq!(err.to_string(), "Airthings rejected the sign-in: Bad client");
+    }
+
+    #[test]
+    fn pkce_challenge_is_sha256_of_verifier() {
+        // Example from RFC 7636 appendix B.
+        let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+        let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
+        assert_eq!(challenge, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+
+        let pkce = Pkce::generate();
+        assert_eq!(pkce.verifier.len(), 43);
+        assert_ne!(pkce.verifier, Pkce::generate().verifier);
+    }
+
+    #[test]
+    fn authorize_url_carries_all_parameters() {
+        let url = authorize_url(DEFAULT_AUTHORIZE_URL, "my client", &redirect_uri(53682), "st", "ch").unwrap();
+        assert_eq!(
+            url,
+            "https://accounts.airthings.com/authorize?response_type=code&client_id=my+client\
+             &redirect_uri=http%3A%2F%2F127.0.0.1%3A53682%2Fcallback&state=st&code_challenge=ch&code_challenge_method=S256"
+        );
+    }
+
+    #[test]
+    fn parses_callback_requests() {
+        assert_eq!(parse_callback("GET /favicon.ico HTTP/1.1", "s").unwrap(), Callback::Ignored);
+        assert_eq!(parse_callback("GET /callback?code=abc&state=s HTTP/1.1", "s").unwrap(), Callback::Code("abc".into()));
+        assert_eq!(
+            parse_callback("GET /callback?error=access_denied&state=s HTTP/1.1", "s").unwrap(),
+            Callback::Denied("access_denied".into())
+        );
+        assert!(parse_callback("GET /callback?code=abc&state=other HTTP/1.1", "s").is_err());
+        assert!(parse_callback("GET /callback?state=s HTTP/1.1", "s").is_err());
+    }
+
+    #[tokio::test]
+    async fn loopback_listener_returns_code_from_browser_redirect() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move { wait_for_code(listener, "st").await });
+
+        let http = reqwest::Client::new();
+        let favicon = http.get(format!("http://127.0.0.1:{port}/favicon.ico")).send().await.unwrap();
+        assert_eq!(favicon.status(), 404);
+        let page = http.get(format!("{}?code=xyz&state=st", redirect_uri(port))).send().await.unwrap();
+        assert!(page.text().await.unwrap().contains("signed in"));
+
+        assert_eq!(server.await.unwrap().unwrap(), "xyz");
+    }
+}

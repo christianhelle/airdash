@@ -31,7 +31,7 @@ pub fn y_bounds(values: impl IntoIterator<Item = f64>) -> Option<(f64, f64)> {
         Some((lo, hi)) => Some((lo.min(v), hi.max(v))),
         None => Some((v, v)),
     })?;
-    let pad = if max - min < f64::EPSILON { 1.0 } else { 0.0 };
+    let pad = if max <= min { 1.0 } else { 0.0 };
     Some((min - pad, max + pad))
 }
 

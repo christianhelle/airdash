@@ -198,12 +198,15 @@ impl Backend {
 
     /// Ask where to save, then write the device's readings as CSV. Gives the path, or `None` if cancelled.
     pub fn export_csv(&self, serial: &str, file_name: String, from: i64, to: i64) -> Task<Result<Option<String>>> {
-        let csv = self.store.export_csv(serial, from, to);
         // Created here on the UI thread, which macOS requires for dialogs.
         let dialog = rfd::AsyncFileDialog::new().set_file_name(file_name).add_filter("CSV", &["csv"]).save_file();
+        let (store, serial) = (self.store.clone(), serial.to_owned());
         self.spawn(async move {
-            let csv = csv?;
             let Some(file) = dialog.await else { return Ok(None) };
+            // A year or more of readings takes a while to query and format, so keep it off the async workers too.
+            let csv = tokio::task::spawn_blocking(move || store.export_csv(&serial, from, to))
+                .await
+                .map_err(|e| Error::Other(format!("could not build the CSV: {e}")))??;
             let path = file.path().to_owned();
             std::fs::write(&path, csv).map_err(|e| Error::Other(format!("could not write {}: {e}", path.display())))?;
             Ok(Some(path.display().to_string()))

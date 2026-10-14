@@ -1,13 +1,7 @@
-pub mod api;
-pub mod auth;
 pub mod commands;
-pub mod error;
-pub mod poller;
-pub mod secrets;
-pub mod session;
-pub mod settings;
-pub mod store;
 mod tray;
+
+pub use airdash_core::{api, auth, error, poller, secrets, session, settings, store};
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;

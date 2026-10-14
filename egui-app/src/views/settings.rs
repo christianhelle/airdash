@@ -84,7 +84,7 @@ impl SettingsView {
                 ui.code(&auth.redirect_uri);
                 ui.add_space(4.0);
                 ui.label("OAuth client ID");
-                ui.add(egui::TextEdit::singleline(&mut self.oauth_client_id).hint_text("Built-in client").desired_width(f32::INFINITY));
+                ui.add(egui::TextEdit::singleline(&mut self.oauth_client_id).hint_text("Not set").desired_width(f32::INFINITY));
                 ui.label("OAuth client secret (leave empty for public clients)");
                 ui.add(egui::TextEdit::singleline(&mut self.oauth_client_secret).password(true).desired_width(f32::INFINITY));
                 ui.horizontal(|ui| {

@@ -141,7 +141,7 @@ impl Backend {
         self.spawn(async move {
             let (client_id, client_secret) = settings
                 .oauth_client()
-                .ok_or_else(|| Error::Other("this build has no Airthings OAuth client; use API client credentials instead".into()))?;
+                .ok_or_else(|| Error::Other("no Airthings OAuth client is set up; sign in with your API client instead".into()))?;
             session
                 .sign_in_oauth(client_id, client_secret, settings.redirect_port, |url| {
                     open::that_detached(url).map_err(|e| Error::Other(format!("could not open the browser: {e}")))

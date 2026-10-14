@@ -55,3 +55,40 @@ jobs:
           releaseName: AirDash ${{ github.ref_name }}
           releaseDraft: true
           args: ${{ matrix.args }}
+
+  egui:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            binary: airdash-egui.exe
+          - os: ubuntu-22.04
+            binary: airdash-egui
+          - os: macos-latest
+            binary: airdash-egui
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libdbus-1-dev libxkbcommon-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: egui-app
+
+      - run: cargo build --release --manifest-path egui-app/Cargo.toml
+        env:
+          AIRDASH_CLIENT_ID: ${{ secrets.AIRDASH_CLIENT_ID }}
+          AIRDASH_CLIENT_SECRET: ${{ secrets.AIRDASH_CLIENT_SECRET }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: airdash-egui-${{ runner.os }}
+          path: egui-app/target/release/${{ matrix.binary }}

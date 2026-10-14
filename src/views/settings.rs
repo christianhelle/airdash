@@ -48,7 +48,7 @@ impl SettingsView {
         ui.add_space(8.0);
 
         section(ui, "Display", |ui| {
-            ui.label("Units");
+            let caption = ui.label("Units");
             egui::ComboBox::from_id_salt("unit")
                 .selected_text(unit_label(self.draft.unit))
                 .width(260.0)
@@ -56,8 +56,10 @@ impl SettingsView {
                     for unit in [Unit::Metric, Unit::Imperial] {
                         ui.selectable_value(&mut self.draft.unit, unit, unit_label(unit));
                     }
-                });
-            ui.label("Theme");
+                })
+                .response
+                .labelled_by(caption.id);
+            let caption = ui.label("Theme");
             egui::ComboBox::from_id_salt("theme")
                 .selected_text(theme_label(&self.draft.theme))
                 .width(260.0)
@@ -65,13 +67,16 @@ impl SettingsView {
                     for theme in ["system", "light", "dark"] {
                         ui.selectable_value(&mut self.draft.theme, theme.to_owned(), theme_label(theme));
                     }
-                });
+                })
+                .response
+                .labelled_by(caption.id);
         });
 
         section(ui, "Recording", |ui| {
             ui.horizontal(|ui| {
-                ui.label("Check for new readings every");
-                ui.add(egui::DragValue::new(&mut self.draft.poll_interval_minutes).range(MIN_POLL_MINUTES..=120).suffix(" min"));
+                let caption = ui.label("Check for new readings every");
+                ui.add(egui::DragValue::new(&mut self.draft.poll_interval_minutes).range(MIN_POLL_MINUTES..=120).suffix(" min"))
+                    .labelled_by(caption.id);
             });
             hint(ui, "Airthings allows 120 requests per hour and most devices update every 5 minutes.");
             ui.checkbox(&mut self.draft.close_to_tray, "Keep recording in the tray when the window is closed");
@@ -83,16 +88,19 @@ impl SettingsView {
                 hint(ui, "Use a different Airthings OAuth client (authorization code flow). Register this redirect URI with it:");
                 ui.code(&auth.redirect_uri);
                 ui.add_space(4.0);
-                ui.label("OAuth client ID");
-                ui.add(egui::TextEdit::singleline(&mut self.oauth_client_id).hint_text("Not set").desired_width(f32::INFINITY));
-                ui.label("OAuth client secret (leave empty for public clients)");
-                ui.add(egui::TextEdit::singleline(&mut self.oauth_client_secret).password(true).desired_width(f32::INFINITY));
+                // Each field is labelled by its caption, so screen readers announce it.
+                let caption = ui.label("OAuth client ID");
+                ui.add(egui::TextEdit::singleline(&mut self.oauth_client_id).hint_text("Not set").desired_width(f32::INFINITY))
+                    .labelled_by(caption.id);
+                let caption = ui.label("OAuth client secret (leave empty for public clients)");
+                ui.add(egui::TextEdit::singleline(&mut self.oauth_client_secret).password(true).desired_width(f32::INFINITY))
+                    .labelled_by(caption.id);
                 ui.horizontal(|ui| {
-                    ui.label("Redirect port");
-                    ui.add(egui::DragValue::new(&mut self.draft.redirect_port).range(1024..=65535));
+                    let caption = ui.label("Redirect port");
+                    ui.add(egui::DragValue::new(&mut self.draft.redirect_port).range(1024..=65535)).labelled_by(caption.id);
                 });
-                ui.label("API client scope");
-                ui.add(egui::TextEdit::singleline(&mut self.draft.scope).desired_width(f32::INFINITY));
+                let caption = ui.label("API client scope");
+                ui.add(egui::TextEdit::singleline(&mut self.draft.scope).desired_width(f32::INFINITY)).labelled_by(caption.id);
             });
         });
         ui.add_space(8.0);

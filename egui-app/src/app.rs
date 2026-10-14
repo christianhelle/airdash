@@ -5,12 +5,11 @@ use airdash_core::poller::{PollerEvent, PollerStatus};
 use airdash_core::settings::Settings;
 
 use crate::backend::{AuthInfo, Backend};
-use crate::views::{dashboard, login::LoginView, status_bar};
+use crate::views::{dashboard, device::DeviceView, login::LoginView, status_bar};
 
-#[derive(Debug, Clone, PartialEq)]
 enum View {
     Dashboard,
-    Device(String),
+    Device(DeviceView),
     Settings,
 }
 
@@ -22,6 +21,8 @@ pub struct AirDashApp {
     devices: Vec<Device>,
     readings: Vec<DeviceSensors>,
     loaded: bool,
+    /// Bumped on every new batch of readings so open charts reload.
+    readings_version: u64,
     error: Option<String>,
     view: View,
     login: LoginView,
@@ -37,6 +38,7 @@ impl AirDashApp {
             devices: Vec::new(),
             readings: Vec::new(),
             loaded: false,
+            readings_version: 0,
             error: None,
             view: View::Dashboard,
             login: LoginView::default(),
@@ -76,7 +78,11 @@ impl AirDashApp {
                         self.signed_out();
                     }
                 }
-                PollerEvent::DevicesUpdated | PollerEvent::ReadingsUpdated => self.load_data(),
+                PollerEvent::DevicesUpdated => self.load_data(),
+                PollerEvent::ReadingsUpdated => {
+                    self.load_data();
+                    self.readings_version += 1;
+                }
             }
         }
     }
@@ -98,7 +104,7 @@ impl AirDashApp {
                     self.view = View::Dashboard;
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.selectable_label(self.view == View::Settings, "Settings").clicked() {
+                    if ui.selectable_label(matches!(self.view, View::Settings), "Settings").clicked() {
                         self.view = View::Settings;
                     }
                 });
@@ -135,12 +141,18 @@ impl eframe::App for AirDashApp {
                 if let Some(error) = &self.error {
                     ui.colored_label(ui.visuals().error_fg_color, error);
                 }
-                match self.view.clone() {
-                    View::Dashboard | View::Device(_) | View::Settings => {
-                        if let Some(serial) = dashboard::ui(ui, &self.devices, &self.readings, self.loaded, self.settings.unit) {
-                            self.view = View::Device(serial);
-                        }
-                    }
+                let unit = self.settings.unit;
+                let next = match &mut self.view {
+                    View::Device(view) => match self.devices.iter().find(|d| d.serial_number == view.serial) {
+                        Some(device) => view.ui(ui, &self.backend, device, unit, self.readings_version).then_some(View::Dashboard),
+                        // The device was removed from the account.
+                        None => Some(View::Dashboard),
+                    },
+                    View::Dashboard | View::Settings => dashboard::ui(ui, &self.devices, &self.readings, self.loaded, unit)
+                        .map(|serial| View::Device(DeviceView::new(serial))),
+                };
+                if let Some(next) = next {
+                    self.view = next;
                 }
             });
         });

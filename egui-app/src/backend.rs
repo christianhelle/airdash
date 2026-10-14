@@ -185,6 +185,20 @@ impl Backend {
         self.spawn(async move { session.set_remote_control(&serial, &state).await })
     }
 
+    /// Ask where to save, then write the device's readings as CSV. Gives the path, or `None` if cancelled.
+    pub fn export_csv(&self, serial: &str, file_name: String, from: i64, to: i64) -> Task<Result<Option<String>>> {
+        let csv = self.store.export_csv(serial, from, to);
+        // Created here on the UI thread, which macOS requires for dialogs.
+        let dialog = rfd::AsyncFileDialog::new().set_file_name(file_name).add_filter("CSV", &["csv"]).save_file();
+        self.spawn(async move {
+            let csv = csv?;
+            let Some(file) = dialog.await else { return Ok(None) };
+            let path = file.path().to_owned();
+            std::fs::write(&path, csv).map_err(|e| Error::Other(format!("could not write {}: {e}", path.display())))?;
+            Ok(Some(path.display().to_string()))
+        })
+    }
+
     pub fn clear_local_data(&self) -> Result<()> {
         self.store.clear()?;
         self.poller.refresh_now();

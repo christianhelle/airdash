@@ -6,8 +6,11 @@ use airdash_core::api::{Device, Unit};
 use airdash_core::store::SensorInfo;
 use egui::{RichText, Ui};
 
-use crate::backend::Backend;
+use airdash_core::error::Result;
+
+use crate::backend::{Backend, Task};
 use crate::chart;
+use crate::format::safe_file_name;
 use crate::sensors::{device_type_name, display_unit, sensor_label, sort_sensors};
 use crate::widgets;
 
@@ -67,6 +70,7 @@ pub struct DeviceView {
     message: String,
     /// The readings version the charts were loaded for.
     version: Option<u64>,
+    export: Option<Task<Result<Option<String>>>>,
 }
 
 impl DeviceView {
@@ -79,6 +83,7 @@ impl DeviceView {
             loaded: false,
             message: String::new(),
             version: None,
+            export: None,
         }
     }
 
@@ -105,6 +110,14 @@ impl DeviceView {
 
     /// `version` changes whenever new readings arrive. Returns true when the user goes back.
     pub fn ui(&mut self, ui: &mut Ui, backend: &Backend, device: &Device, unit: Unit, version: u64) -> bool {
+        if let Some(result) = self.export.as_ref().and_then(Task::ready) {
+            self.export = None;
+            self.message = match result {
+                Ok(Some(path)) => format!("Saved {path}"),
+                Ok(None) => String::new(),
+                Err(e) => e.to_string(),
+            };
+        }
         if self.version != Some(version) {
             self.version = Some(version);
             self.load(backend);
@@ -122,6 +135,14 @@ impl DeviceView {
                     self.load(backend);
                 }
             }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let enabled = !self.sensors.is_empty() && self.export.is_none();
+                if ui.add_enabled(enabled, egui::Button::new("Export CSV")).clicked() {
+                    let (from, to) = self.range.bounds(chrono::Utc::now().timestamp());
+                    let file_name = format!("{}-{}.csv", safe_file_name(&device.name), self.range.id());
+                    self.export = Some(backend.export_csv(&self.serial, file_name, from, to));
+                }
+            });
         });
         if !self.message.is_empty() {
             ui.weak(&self.message);

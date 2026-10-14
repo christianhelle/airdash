@@ -1,6 +1,7 @@
 pub mod api;
 pub mod auth;
 pub mod error;
+pub mod poller;
 pub mod secrets;
 pub mod session;
 pub mod settings;

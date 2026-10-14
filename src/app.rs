@@ -1,9 +1,10 @@
 //! The egui application: picks the view and keeps the dashboard data fresh.
 
-use airdash_core::api::{Device, DeviceSensors};
+use airdash_core::api::Device;
 use airdash_core::error::{Error, Result};
 use airdash_core::refresh::Snapshot;
 use airdash_core::settings::Settings;
+use airdash_core::state::AppState;
 use egui_winit::WindowSettings;
 
 use crate::backend::{AuthInfo, Backend, Task};
@@ -23,9 +24,10 @@ pub struct AirDashApp {
     status: status_bar::Status,
     /// The refresh in flight, if any.
     refresh: Option<Task<Result<Snapshot>>>,
+    /// Restored at launch and saved on every change.
+    state: AppState,
+    /// The state's devices in the user's order.
     devices: Vec<Device>,
-    readings: Vec<DeviceSensors>,
-    loaded: bool,
     error: Option<String>,
     view: View,
     login: LoginView,
@@ -46,37 +48,34 @@ impl AirDashApp {
             settings: backend.settings(),
             status: status_bar::Status::default(),
             refresh: None,
+            state: backend.load_state(),
             backend,
             devices: Vec::new(),
-            readings: Vec::new(),
-            loaded: false,
             error: None,
             view: View::Dashboard,
             login: LoginView::default(),
             window: storage.and_then(|s| eframe::get_value(s, WINDOW_STATE_KEY)),
         };
+        app.restore_state();
         app.refresh_auth();
         app
     }
 
-    fn refresh_auth(&mut self) {
-        self.auth = self.backend.auth_info();
-        if self.auth.signed_in {
-            self.load_data();
-        }
+    /// Show the last known state right away; a refresh follows once it is older than the refresh interval.
+    fn restore_state(&mut self) {
+        self.devices = self.state.devices();
+        self.status.last_refresh = self.state.last_refresh;
+        self.status.last_attempt = self.state.last_refresh;
+        self.status.rate_limit = self.state.snapshot.rate_limit.clone();
     }
 
-    fn load_data(&mut self) {
-        let store = &self.backend.store;
-        match store.devices().and_then(|d| Ok((d, store.latest()?))) {
-            Ok((devices, readings)) => {
-                self.devices = devices;
-                self.readings = readings;
-                self.error = None;
-            }
-            Err(e) => self.error = Some(e.to_string()),
-        }
-        self.loaded = true;
+    fn save_state(&mut self) {
+        self.devices = self.state.devices();
+        self.error = self.backend.save_state(&self.state).err().map(|e| e.to_string());
+    }
+
+    fn refresh_auth(&mut self) {
+        self.auth = self.backend.auth_info();
     }
 
     fn start_refresh(&mut self) {
@@ -94,8 +93,10 @@ impl AirDashApp {
                 Ok(snapshot) => {
                     self.status.last_refresh = self.status.last_attempt;
                     self.status.last_error = None;
-                    self.status.rate_limit = snapshot.rate_limit;
-                    self.load_data();
+                    self.status.rate_limit = snapshot.rate_limit.clone();
+                    self.state.snapshot = snapshot;
+                    self.state.last_refresh = self.status.last_refresh;
+                    self.save_state();
                 }
                 // A rejected refresh token signs the user out.
                 Err(Error::Unauthorized) if !self.backend.session.is_signed_in() => self.signed_out(),
@@ -116,11 +117,11 @@ impl AirDashApp {
 
     fn signed_out(&mut self) {
         self.view = View::Dashboard;
-        self.devices.clear();
-        self.readings.clear();
-        self.loaded = false;
         self.refresh = None;
         self.status = status_bar::Status::default();
+        // The next account sees only its own devices. Their order is kept, as it is per device.
+        self.state = AppState { device_order: std::mem::take(&mut self.state.device_order), ..AppState::default() };
+        self.save_state();
         self.refresh_auth();
     }
 
@@ -208,7 +209,8 @@ impl eframe::App for AirDashApp {
                         None => None,
                     },
                     View::Dashboard => {
-                        reordered = dashboard::ui(ui, &self.devices, &self.readings, self.loaded, unit);
+                        let loaded = self.status.last_refresh.is_some();
+                        reordered = dashboard::ui(ui, &self.devices, &self.state.snapshot.readings, loaded, unit);
                         None
                     }
                 };
@@ -219,10 +221,8 @@ impl eframe::App for AirDashApp {
                     self.signed_out();
                 }
                 if let Some(order) = reordered {
-                    match self.backend.store.set_device_order(&order) {
-                        Ok(()) => self.load_data(),
-                        Err(e) => self.error = Some(e.to_string()),
-                    }
+                    self.state.device_order = order;
+                    self.save_state();
                 }
             });
         });

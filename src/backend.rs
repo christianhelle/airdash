@@ -13,7 +13,7 @@ use airdash_core::refresh::{self, Snapshot};
 use airdash_core::secrets::KeychainStore;
 use airdash_core::session::Session;
 use airdash_core::settings::Settings;
-use airdash_core::store::Store;
+use airdash_core::state::AppState;
 use tokio::runtime::Runtime;
 
 /// The folders the earlier Tauri version used, so existing settings, history and sign-in carry over.
@@ -47,10 +47,9 @@ pub struct Backend {
     runtime: Runtime,
     ctx: egui::Context,
     pub session: Arc<Session>,
-    pub store: Arc<Store>,
     settings: Arc<RwLock<Settings>>,
     settings_path: PathBuf,
-    pub data_dir: PathBuf,
+    state_path: PathBuf,
 }
 
 impl Backend {
@@ -62,7 +61,6 @@ impl Backend {
 
         let settings_path = config_dir.join("settings.json");
         let settings = Arc::new(RwLock::new(Settings::load(&settings_path)));
-        let store = Arc::new(Store::open(&data_dir.join("airdash.db"))?);
 
         let http = reqwest::Client::builder()
             .user_agent(concat!("AirDash/", env!("CARGO_PKG_VERSION")))
@@ -76,7 +74,8 @@ impl Backend {
 
         let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
 
-        Ok(Backend { runtime, ctx, session, store, settings, settings_path, data_dir })
+        let state_path = data_dir.join("state.json");
+        Ok(Backend { runtime, ctx, session, settings, settings_path, state_path })
     }
 
     /// Run `future` on the runtime and wake the UI when it finishes.
@@ -90,15 +89,19 @@ impl Backend {
         Task(rx)
     }
 
-    /// Fetch the devices and their latest readings, and record them.
+    /// Fetch the devices and their latest readings.
     pub fn refresh(&self) -> Task<Result<Snapshot>> {
-        let (session, store) = (self.session.clone(), self.store.clone());
-        self.spawn(async move {
-            let snapshot = refresh::fetch(&session).await?;
-            store.replace_devices(&snapshot.devices)?;
-            store.insert_readings(&snapshot.readings)?;
-            Ok(snapshot)
-        })
+        let session = self.session.clone();
+        self.spawn(async move { refresh::fetch(&session).await })
+    }
+
+    /// The dashboard as it was when AirDash last saved it.
+    pub fn load_state(&self) -> AppState {
+        AppState::load(&self.state_path)
+    }
+
+    pub fn save_state(&self, state: &AppState) -> Result<()> {
+        state.save(&self.state_path)
     }
 
     pub fn settings(&self) -> Settings {
@@ -159,17 +162,9 @@ impl Backend {
         self.spawn(async move { session.sign_out().await })
     }
 
-    pub fn clear_local_data(&self) -> Result<()> {
-        self.store.clear()
-    }
-
     pub fn open_url(&self, url: &str) {
         if url.starts_with("https://") {
             let _ = open::that_detached(url);
         }
-    }
-
-    pub fn open_data_dir(&self) {
-        let _ = open::that_detached(&self.data_dir);
     }
 }

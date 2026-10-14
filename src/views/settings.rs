@@ -1,4 +1,4 @@
-//! Units, theme, advanced sign-in options, account and local data.
+//! Units, theme, advanced sign-in options and account.
 
 use airdash_core::api::Unit;
 use airdash_core::settings::Settings;
@@ -19,7 +19,6 @@ pub struct SettingsView {
     oauth_client_id: String,
     oauth_client_secret: String,
     message: String,
-    confirm_delete: bool,
     sign_out: Option<Task<()>>,
 }
 
@@ -30,7 +29,6 @@ impl SettingsView {
             oauth_client_secret: settings.oauth_client_secret.clone().unwrap_or_default(),
             draft: settings.clone(),
             message: String::new(),
-            confirm_delete: false,
             sign_out: None,
         }
     }
@@ -118,38 +116,12 @@ impl SettingsView {
                 Some(SignInMethod::OAuth) => "with your Airthings account",
                 _ => "with an API client",
             };
-            ui.weak(format!("Signed in {how}. Signing out keeps your recorded history."));
+            ui.weak(format!("Signed in {how}."));
             if ui.add_enabled(self.sign_out.is_none(), egui::Button::new("Sign out")).clicked() {
                 self.sign_out = Some(backend.sign_out());
             }
         });
 
-        section(ui, "Local data", |ui| {
-            ui.horizontal_wrapped(|ui| {
-                ui.weak("History is stored in");
-                ui.code(backend.data_dir.display().to_string());
-            });
-            ui.horizontal(|ui| {
-                if ui.button("Open folder").clicked() {
-                    backend.open_data_dir();
-                }
-                let danger = ui.visuals().error_fg_color;
-                if self.confirm_delete {
-                    if ui.button(RichText::new("Delete all history").color(danger)).clicked() {
-                        self.message = match backend.clear_local_data() {
-                            Ok(()) => "Local history deleted.".into(),
-                            Err(e) => e.to_string(),
-                        };
-                        self.confirm_delete = false;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        self.confirm_delete = false;
-                    }
-                } else if ui.button(RichText::new("Delete local data…").color(danger)).clicked() {
-                    self.confirm_delete = true;
-                }
-            });
-        });
         action
     }
 }

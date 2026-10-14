@@ -10,8 +10,6 @@ pub enum Error {
     Unauthorized,
     #[error("Airthings rejected the sign-in: {0}")]
     Rejected(String),
-    #[error("database error: {0}")]
-    Db(#[from] rusqlite::Error),
     #[error("{0}")]
     Other(String),
 }

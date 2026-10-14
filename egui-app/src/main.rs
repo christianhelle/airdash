@@ -12,8 +12,8 @@ mod tray;
 mod views;
 mod widgets;
 
-/// Shared with the Tauri app.
-pub const ICON_PNG: &[u8] = include_bytes!("../../src-tauri/icons/128x128.png");
+/// Window and tray icon.
+pub const ICON_PNG: &[u8] = include_bytes!("../../assets/icon.png");
 
 fn main() -> eframe::Result {
     let single_instance::Instance::Primary(instance) = single_instance::acquire() else {

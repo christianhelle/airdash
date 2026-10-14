@@ -9,12 +9,11 @@ use crate::backend::{AuthInfo, Backend};
 use crate::theme;
 use crate::tray::Tray;
 use crate::views::settings::{self, SettingsView};
-use crate::views::{dashboard, device::DeviceView, login::LoginView, status_bar};
+use crate::views::{dashboard, login::LoginView, status_bar};
 
 enum View {
     Dashboard,
-    Device(DeviceView),
-    Settings(SettingsView),
+    Settings(Box<SettingsView>),
 }
 
 pub struct AirDashApp {
@@ -27,8 +26,6 @@ pub struct AirDashApp {
     loaded: bool,
     /// New devices or readings arrived since the dashboard data was last loaded.
     data_stale: bool,
-    /// Bumped on every new batch of readings so open charts reload.
-    readings_version: u64,
     error: Option<String>,
     view: View,
     login: LoginView,
@@ -60,7 +57,6 @@ impl AirDashApp {
             readings: Vec::new(),
             loaded: false,
             data_stale: false,
-            readings_version: 0,
             error: None,
             view: View::Dashboard,
             login: LoginView::default(),
@@ -108,10 +104,7 @@ impl AirDashApp {
                 }
                 // Reloaded once on the next drawn frame, however many updates arrive while the window is hidden.
                 PollerEvent::DevicesUpdated => self.data_stale = true,
-                PollerEvent::ReadingsUpdated => {
-                    self.data_stale = true;
-                    self.readings_version += 1;
-                }
+                PollerEvent::ReadingsUpdated => self.data_stale = true,
             }
         }
     }
@@ -135,7 +128,7 @@ impl AirDashApp {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let open = matches!(self.view, View::Settings(_));
                     if ui.selectable_label(open, "Settings").clicked() && !open {
-                        self.view = View::Settings(SettingsView::new(&self.settings));
+                        self.view = View::Settings(Box::new(SettingsView::new(&self.settings)));
                     }
                 });
             });
@@ -265,11 +258,6 @@ impl eframe::App for AirDashApp {
                 let mut signed_out = false;
                 let mut reordered = None;
                 let next = match &mut self.view {
-                    View::Device(view) => match self.devices.iter().find(|d| d.serial_number == view.serial) {
-                        Some(device) => view.ui(ui, &self.backend, device, unit, self.readings_version).then_some(View::Dashboard),
-                        // The device was removed from the account.
-                        None => Some(View::Dashboard),
-                    },
                     View::Settings(view) => match view.ui(ui, &self.backend, &self.auth) {
                         Some(settings::Action::Back) => Some(View::Dashboard),
                         Some(settings::Action::Saved(saved)) => {
@@ -283,14 +271,10 @@ impl eframe::App for AirDashApp {
                         }
                         None => None,
                     },
-                    View::Dashboard => match dashboard::ui(ui, &self.devices, &self.readings, self.loaded, unit) {
-                        Some(dashboard::Action::Open(serial)) => Some(View::Device(DeviceView::new(serial))),
-                        Some(dashboard::Action::Reorder(order)) => {
-                            reordered = Some(order);
-                            None
-                        }
-                        None => None,
-                    },
+                    View::Dashboard => {
+                        reordered = dashboard::ui(ui, &self.devices, &self.readings, self.loaded, unit);
+                        None
+                    }
                 };
                 if let Some(next) = next {
                     self.view = next;

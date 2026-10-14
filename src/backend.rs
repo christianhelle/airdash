@@ -6,7 +6,7 @@ use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use airdash_core::api::{self, ApiClient, RemoteControlState};
+use airdash_core::api::{self, ApiClient};
 use airdash_core::auth::{self, AuthClient, Credentials};
 use airdash_core::error::{Error, Result};
 use airdash_core::poller::{Poller, PollerEvent};
@@ -105,17 +105,6 @@ impl Backend {
         Task(rx)
     }
 
-    /// Run blocking work, such as a large database query, off the UI thread and wake the UI when it finishes.
-    pub fn spawn_blocking<T: Send + 'static>(&self, work: impl FnOnce() -> T + Send + 'static) -> Task<T> {
-        let (tx, rx) = mpsc::channel();
-        let ctx = self.ctx.clone();
-        self.runtime.spawn_blocking(move || {
-            let _ = tx.send(work());
-            ctx.request_repaint();
-        });
-        Task(rx)
-    }
-
     /// Poller events received since the last call.
     pub fn events(&self) -> Vec<PollerEvent> {
         self.events.try_iter().collect()
@@ -183,33 +172,6 @@ impl Backend {
         self.spawn(async move {
             session.sign_out().await;
             poller.reset();
-        })
-    }
-
-    pub fn remote_control(&self, serial: &str) -> Task<Result<Option<RemoteControlState>>> {
-        let (session, serial) = (self.session.clone(), serial.to_owned());
-        self.spawn(async move { session.remote_control(&serial).await })
-    }
-
-    pub fn set_remote_control(&self, serial: &str, state: RemoteControlState) -> Task<Result<()>> {
-        let (session, serial) = (self.session.clone(), serial.to_owned());
-        self.spawn(async move { session.set_remote_control(&serial, &state).await })
-    }
-
-    /// Ask where to save, then write the device's readings as CSV. Gives the path, or `None` if cancelled.
-    pub fn export_csv(&self, serial: &str, file_name: String, from: i64, to: i64) -> Task<Result<Option<String>>> {
-        // Created here on the UI thread, which macOS requires for dialogs.
-        let dialog = rfd::AsyncFileDialog::new().set_file_name(file_name).add_filter("CSV", &["csv"]).save_file();
-        let (store, serial) = (self.store.clone(), serial.to_owned());
-        self.spawn(async move {
-            let Some(file) = dialog.await else { return Ok(None) };
-            // A year or more of readings takes a while to query and format, so keep it off the async workers too.
-            let csv = tokio::task::spawn_blocking(move || store.export_csv(&serial, from, to))
-                .await
-                .map_err(|e| Error::Other(format!("could not build the CSV: {e}")))??;
-            let path = file.path().to_owned();
-            std::fs::write(&path, csv).map_err(|e| Error::Other(format!("could not write {}: {e}", path.display())))?;
-            Ok(Some(path.display().to_string()))
         })
     }
 

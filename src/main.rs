@@ -5,7 +5,6 @@ use std::sync::{Arc, OnceLock};
 
 mod app;
 mod backend;
-mod chart;
 mod format;
 mod sensors;
 mod single_instance;

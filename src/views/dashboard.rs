@@ -37,21 +37,15 @@ pub fn parse_recorded(recorded: Option<&str>) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(recorded?).ok().map(|t| t.timestamp())
 }
 
-pub enum Action {
-    /// Open the device page for this serial number.
-    Open(String),
-    /// The user dragged a device to a new place; this is the full new order of serial numbers.
-    Reorder(Vec<String>),
-}
-
 /// What is being dragged. Devices can only move within their own home.
 struct DraggedDevice {
     serial: String,
     home: String,
 }
 
-pub fn ui(ui: &mut Ui, devices: &[Device], readings: &[DeviceSensors], loaded: bool, unit: Unit) -> Option<Action> {
-    let mut action = None;
+/// Gives the full new order of serial numbers when the user dragged a device to a new place.
+pub fn ui(ui: &mut Ui, devices: &[Device], readings: &[DeviceSensors], loaded: bool, unit: Unit) -> Option<Vec<String>> {
+    let mut reordered = None;
     if devices.is_empty() {
         widgets::card(ui).show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -79,27 +73,23 @@ pub fn ui(ui: &mut Ui, devices: &[Device], readings: &[DeviceSensors], loaded: b
         }
         widgets::grid(ui, home_devices, 340.0, 16.0, |ui, device| {
             let reading = readings.iter().find(|r| r.serial_number == device.serial_number);
-            match device_card(ui, device, home, reading, unit, now) {
-                Some(CardEvent::Clicked) => action = Some(Action::Open(device.serial_number.clone())),
-                Some(CardEvent::Dropped { serial, after }) => {
-                    let serials: Vec<String> = devices.iter().map(|d| d.serial_number.clone()).collect();
-                    action = Some(Action::Reorder(reorder(&serials, &serial, &device.serial_number, after)));
-                }
-                None => {}
+            if let Some(Dropped { serial, after }) = device_card(ui, device, home, reading, unit, now) {
+                let serials: Vec<String> = devices.iter().map(|d| d.serial_number.clone()).collect();
+                reordered = Some(reorder(&serials, &serial, &device.serial_number, after));
             }
         });
         ui.add_space(12.0);
     }
-    action
+    reordered
 }
 
-enum CardEvent {
-    Clicked,
-    /// Another device was dropped on this card, to go before or after it.
-    Dropped { serial: String, after: bool },
+/// Another device was dropped on a card, to go before or after it.
+struct Dropped {
+    serial: String,
+    after: bool,
 }
 
-fn device_card(ui: &mut Ui, device: &Device, home: &str, reading: Option<&DeviceSensors>, unit: Unit, now: i64) -> Option<CardEvent> {
+fn device_card(ui: &mut Ui, device: &Device, home: &str, reading: Option<&DeviceSensors>, unit: Unit, now: i64) -> Option<Dropped> {
     let mut sensors: Vec<_> = reading.map(|r| r.sensors.iter().collect()).unwrap_or_default();
     sort_sensors(&mut sensors, |s| &s.sensor_type);
     let level = worst_level(sensors.iter().map(|s| (s.sensor_type.as_str(), s.value)));
@@ -107,8 +97,8 @@ fn device_card(ui: &mut Ui, device: &Device, home: &str, reading: Option<&Device
     let name = if device.name.is_empty() { &device.serial_number } else { &device.name };
 
     let response = ui
-        .scope_builder(UiBuilder::new().sense(Sense::click_and_drag()), |ui| {
-            // Selectable text would swallow clicks meant for the card.
+        .scope_builder(UiBuilder::new().sense(Sense::drag()), |ui| {
+            // Selectable text would swallow drags meant for the card.
             ui.style_mut().interaction.selectable_labels = false;
             widgets::card(ui).show(ui, |ui| {
                 ui.set_width(ui.available_width());
@@ -144,8 +134,8 @@ fn device_card(ui: &mut Ui, device: &Device, home: &str, reading: Option<&Device
         })
         .response;
 
-    // Screen readers announce the card as a button named after the device.
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, name));
+    // Screen readers announce the card by the device's name.
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, name));
     response.dnd_set_drag_payload(DraggedDevice { serial: device.serial_number.clone(), home: home.to_owned() });
     let accent = ui.visuals().hyperlink_color;
     let rect = response.rect;
@@ -180,13 +170,10 @@ fn device_card(ui: &mut Ui, device: &Device, home: &str, reading: Option<&Device
         ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
     }
     if let Some(dragged) = response.dnd_release_payload::<DraggedDevice>().filter(|d| droppable(d)) {
-        return Some(CardEvent::Dropped { serial: dragged.serial.clone(), after });
+        return Some(Dropped { serial: dragged.serial.clone(), after });
     }
-
-    if response.hovered() {
-        ui.painter().rect_stroke(rect, 10.0, egui::Stroke::new(1.0, accent), egui::StrokeKind::Inside);
-    }
-    response.on_hover_cursor(egui::CursorIcon::PointingHand).clicked().then_some(CardEvent::Clicked)
+    response.on_hover_cursor(egui::CursorIcon::Grab);
+    None
 }
 
 #[cfg(test)]

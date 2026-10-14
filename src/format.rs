@@ -1,6 +1,4 @@
-//! Human-readable times and file names.
-
-use chrono::{Local, TimeZone};
+//! Human-readable times.
 
 /// "just now", "5 min ago", "3 h ago", "2 days ago" relative to `now` (epoch seconds).
 pub fn time_ago(epoch: i64, now: i64) -> String {
@@ -32,34 +30,6 @@ pub fn time_until(epoch: i64, now: i64) -> String {
     }
 }
 
-/// "Oct 14, 10:05" in local time.
-pub fn format_date_time(epoch: i64) -> String {
-    Local
-        .timestamp_opt(epoch, 0)
-        .single()
-        .map(|t| t.format("%b %-d, %H:%M").to_string())
-        .unwrap_or_default()
-}
-
-/// A file name that is safe on every OS.
-pub fn safe_file_name(name: &str) -> String {
-    let mut out = String::new();
-    let mut in_invalid = false;
-    for c in name.chars() {
-        if matches!(c, '\\' |'/' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
-            if !in_invalid {
-                out.push('-');
-            }
-            in_invalid = true;
-        } else {
-            out.push(c);
-            in_invalid = false;
-        }
-    }
-    let out = out.split_whitespace().collect::<Vec<_>>().join(" ");
-    if out.is_empty() { "airdash".into() } else { out }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -80,11 +50,5 @@ mod tests {
         assert_eq!(time_until(NOW - 1, NOW), "now");
         assert_eq!(time_until(NOW + 4 * 60, NOW), "in 4 min");
         assert_eq!(time_until(NOW + 2 * 3600, NOW), "in 2 h");
-    }
-
-    #[test]
-    fn strips_characters_that_are_invalid_in_file_names() {
-        assert_eq!(safe_file_name("Living room: \"main\""), "Living room- -main-");
-        assert_eq!(safe_file_name("  "), "airdash");
     }
 }

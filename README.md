@@ -3,7 +3,7 @@
 A cross-platform desktop dashboard for Airthings air quality monitors. It replaces the retiring
 [Airthings Web Dashboard](https://dashboard.airthings.com/).
 
-Built with [Tauri 2](https://tauri.app) (Rust) and Svelte. There is no server: the app talks directly to the
+Written in Rust with [egui](https://github.com/emilk/egui). There is no server: the app talks directly to the
 [Airthings Consumer API](https://consumer-api-doc.airthings.com/) from your computer.
 
 > AirDash is an independent project and is not affiliated with or endorsed by Airthings.
@@ -12,6 +12,7 @@ Built with [Tauri 2](https://tauri.app) (Rust) and Svelte. There is no server: t
 
 - Every device on your account, grouped by home, with live sensor values (radon, CO₂, VOC, PM, humidity,
   temperature, pressure and more). Each value is rated Good, Fair or Poor using Airthings' thresholds.
+- Drag device cards to put them in the order you like.
 - History charts covering 24 hours, 7 days, 30 days, 1 year or everything, with CSV export.
 - Mode and fan-speed control for Airthings Renew air purifiers.
 - Metric or imperial units, plus light, dark or system theme.
@@ -28,94 +29,50 @@ To find the data folder, open Settings → Local data → Open folder.
 
 ## Signing in
 
-There are two ways to sign in:
+AirDash has no Airthings credentials built in. Each user signs in with their own account's API client, so
+everyone sees only their own devices:
 
-1. **Sign in with Airthings.** Available in builds that include a registered OAuth client. AirDash opens the
-   Airthings login page in your browser and receives the result on `http://127.0.0.1:53682/callback`. No API
-   keys are needed.
-2. **Use your own API client.** Works with every build. Create an API client under
-   [Airthings My Applications](https://consumer-api-doc.airthings.com/dashboard) and paste its client ID and
-   secret into AirDash once.
+1. Create an API client under [Airthings My Applications](https://consumer-api-doc.airthings.com/dashboard).
+2. Start AirDash and paste the client ID and secret into the sign-in screen. You only need to do this once:
+   they are kept in the OS keychain.
 
-### Registering the AirDash OAuth client
+### Browser sign-in with an OAuth client
 
-Airthings only lets *business* accounts create OAuth clients that use the authorization code flow. Consumer
-accounts can create client-credentials keys only. To enable browser sign-in for everyone:
-
-1. With an Airthings business account, or with help from Airthings support, create an API client with:
-   - Flow type: **Authorization code** (`CODE_FLOW`)
-   - Access type: **Public** if Airthings accepts PKCE without a secret, otherwise **Confidential**
-   - Redirect URI: `http://127.0.0.1:53682/callback`
-   - Scope: read access to devices
-2. Build AirDash with the client compiled in:
-
-   ```bash
-   AIRDASH_CLIENT_ID=<client id> AIRDASH_CLIENT_SECRET=<secret, if confidential> npm run tauri build
-   ```
-
-   In CI, add `AIRDASH_CLIENT_ID` and `AIRDASH_CLIENT_SECRET` as repository secrets. The release workflow
-   passes them to the build.
-
-A secret shipped inside a desktop app cannot be kept truly secret. A public client with PKCE is preferable
-whenever Airthings allows one.
-
-You can also enter a different OAuth client and redirect port without rebuilding, under Settings → Advanced
-sign-in options.
+If you have an Airthings OAuth client that uses the authorization code flow (only *business* accounts can
+create these), enter it under Settings → Advanced sign-in options and register the redirect URI shown there
+(`http://127.0.0.1:53682/callback` by default). After signing out, the sign-in screen then offers "Sign in with
+Airthings", which opens the Airthings login page in your browser.
 
 ## Development
 
-Prerequisites: [Rust](https://rustup.rs), [Node.js](https://nodejs.org) 22+, and the
-[Tauri system dependencies](https://tauri.app/start/prerequisites/) for your OS.
+Prerequisites: [Rust](https://rustup.rs). On Linux, also `pkg-config`, `libdbus-1-dev` and `libxkbcommon-dev`.
 
 ```bash
-npm install
-npm run tauri dev
+cargo run
+cargo test --workspace
+cargo clippy --workspace --all-targets
+cargo build --release
 ```
 
-Tests and checks:
+Release builds for Windows, macOS and Linux are attached to a draft GitHub release when a `v*` tag is pushed.
 
-```bash
-npm test
-npm run check
-cargo test --manifest-path core/Cargo.toml
-cargo test --manifest-path src-tauri/Cargo.toml
-```
-
-Release build (installers end up in `src-tauri/target/release/bundle`):
-
-```bash
-npm run tauri build
-```
-
-### Pure Rust version (egui)
-
-`egui-app/` is the same app without a web view: an [egui](https://github.com/emilk/egui) UI on top of the shared
-`airdash-core` crate. It has the same features (dashboard, history charts, CSV export, Renew controls, settings,
-tray icon), and you can drag device cards to reorder them within a home and uses the same settings, history database and stored sign-in as the Tauri app, so you can switch
-between them. It needs only Rust to build:
-
-```bash
-cargo run --manifest-path egui-app/Cargo.toml
-cargo test --manifest-path egui-app/Cargo.toml
-cargo build --release --manifest-path egui-app/Cargo.toml
-```
-
-The OAuth client is compiled in the same way, through `AIRDASH_CLIENT_ID` and `AIRDASH_CLIENT_SECRET`. On Linux
-the tray icon uses the StatusNotifierItem D-Bus protocol, so GTK is not needed.
+On Linux the tray icon uses the StatusNotifierItem D-Bus protocol, so GTK is not needed.
 
 ### Layout
 
 | Path | What |
 | --- | --- |
+| `src/backend.rs` | Starts the core services and hands background results to the UI |
+| `src/views/` | Sign-in, dashboard, device, settings and status bar |
+| `src/chart.rs`, `src/widgets.rs` | History charts, cards, level badges and sensor tiles |
+| `src/sensors.rs` | Sensor labels, units, conversions and air-quality levels |
+| `src/tray.rs`, `src/single_instance.rs` | Tray icon and the single running instance |
 | `core/src/api.rs` | Typed Consumer API client |
 | `core/src/auth.rs` | OAuth (PKCE and loopback redirect) and client-credentials token requests |
 | `core/src/session.rs` | Access-token caching, refresh, the retry on 401 and the browser sign-in flow |
 | `core/src/secrets.rs` | Keychain credential storage |
-| `core/src/store.rs` | SQLite reading history |
+| `core/src/store.rs` | SQLite reading history and device order |
 | `core/src/poller.rs` | Background polling that respects rate limits |
-| `src-tauri/src/commands.rs` | Commands the Svelte UI calls |
-| `src/lib/` | Svelte UI: API wrappers, sensor metadata, components and views |
-| `egui-app/src/` | egui UI: backend wiring, views, charts, tray and sensor metadata |
 
 ## License
 

@@ -33,10 +33,17 @@ pub struct AirDashApp {
     tray: Option<Tray>,
     /// Explaining, the first time the window is closed, that AirDash keeps running in the tray.
     close_notice: bool,
+    /// Whether the window is minimized, when its reported size and position are meaningless.
+    minimized: bool,
+    /// The window geometry eframe last saved while the window was not minimized.
+    saved_window: Option<String>,
 }
 
+/// The key eframe saves the window's size and position under, just before it calls [`eframe::App::save`].
+const WINDOW_STATE_KEY: &str = "window";
+
 impl AirDashApp {
-    pub fn new(ctx: &egui::Context, backend: Backend) -> Self {
+    pub fn new(ctx: &egui::Context, backend: Backend, storage: Option<&dyn eframe::Storage>) -> Self {
         theme::install(ctx);
         theme::apply(ctx, &backend.settings().theme);
         let tray = Tray::create(ctx, backend.poller.clone())
@@ -56,6 +63,8 @@ impl AirDashApp {
             login: LoginView::default(),
             tray,
             close_notice: false,
+            minimized: false,
+            saved_window: storage.and_then(|s| s.get_string(WINDOW_STATE_KEY)),
         };
         app.refresh_auth();
         app
@@ -192,8 +201,20 @@ impl eframe::App for AirDashApp {
         false
     }
 
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        // A minimized window reports a 0x0 size far off screen, so keep the last real geometry instead.
+        if self.minimized {
+            if let Some(window) = &self.saved_window {
+                storage.set_string(WINDOW_STATE_KEY, window.clone());
+            }
+        } else {
+            self.saved_window = storage.get_string(WINDOW_STATE_KEY);
+        }
+    }
+
     // Runs even while the window is hidden in the tray.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.minimized = ctx.input(|i| i.viewport().minimized.unwrap_or(false));
         let Some(tray) = &self.tray else { return };
         let quitting = tray.quitting.load(std::sync::atomic::Ordering::SeqCst);
         if ctx.input(|i| i.viewport().close_requested()) && self.settings.close_to_tray && !quitting {

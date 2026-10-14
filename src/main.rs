@@ -40,7 +40,7 @@ fn main() -> eframe::Result {
             let ctx = cc.egui_ctx.clone();
             single_instance::listen(instance, move || tray::show_window(&ctx));
             let backend = backend::Backend::new(cc.egui_ctx.clone())?;
-            Ok(Box::new(app::AirDashApp::new(&cc.egui_ctx, backend)))
+            Ok(Box::new(app::AirDashApp::new(&cc.egui_ctx, backend, cc.storage)))
         }),
     )
 }

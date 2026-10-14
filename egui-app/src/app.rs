@@ -32,6 +32,7 @@ pub struct AirDashApp {
 
 impl AirDashApp {
     pub fn new(ctx: &egui::Context, backend: Backend) -> Self {
+        theme::install(ctx);
         theme::apply(ctx, &backend.settings().theme);
         let mut app = AirDashApp {
             auth: backend.auth_info(),

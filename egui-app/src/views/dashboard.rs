@@ -114,7 +114,7 @@ fn device_card(ui: &mut Ui, device: &Device, reading: Option<&DeviceSensors>, un
         ui.painter().rect_stroke(
             response.rect,
             10.0,
-            egui::Stroke::new(1.0, ui.visuals().selection.stroke.color),
+            egui::Stroke::new(1.0, ui.visuals().hyperlink_color),
             egui::StrokeKind::Inside,
         );
     }

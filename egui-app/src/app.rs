@@ -5,12 +5,13 @@ use airdash_core::poller::{PollerEvent, PollerStatus};
 use airdash_core::settings::Settings;
 
 use crate::backend::{AuthInfo, Backend};
+use crate::views::settings::{self, SettingsView};
 use crate::views::{dashboard, device::DeviceView, login::LoginView, status_bar};
 
 enum View {
     Dashboard,
     Device(DeviceView),
-    Settings,
+    Settings(SettingsView),
 }
 
 pub struct AirDashApp {
@@ -104,8 +105,9 @@ impl AirDashApp {
                     self.view = View::Dashboard;
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.selectable_label(matches!(self.view, View::Settings), "Settings").clicked() {
-                        self.view = View::Settings;
+                    let open = matches!(self.view, View::Settings(_));
+                    if ui.selectable_label(open, "Settings").clicked() && !open {
+                        self.view = View::Settings(SettingsView::new(&self.settings));
                     }
                 });
             });
@@ -142,17 +144,33 @@ impl eframe::App for AirDashApp {
                     ui.colored_label(ui.visuals().error_fg_color, error);
                 }
                 let unit = self.settings.unit;
+                let mut signed_out = false;
                 let next = match &mut self.view {
                     View::Device(view) => match self.devices.iter().find(|d| d.serial_number == view.serial) {
                         Some(device) => view.ui(ui, &self.backend, device, unit, self.readings_version).then_some(View::Dashboard),
                         // The device was removed from the account.
                         None => Some(View::Dashboard),
                     },
-                    View::Dashboard | View::Settings => dashboard::ui(ui, &self.devices, &self.readings, self.loaded, unit)
+                    View::Settings(view) => match view.ui(ui, &self.backend, &self.auth) {
+                        Some(settings::Action::Back) => Some(View::Dashboard),
+                        Some(settings::Action::Saved(saved)) => {
+                            self.settings = saved;
+                            None
+                        }
+                        Some(settings::Action::SignedOut) => {
+                            signed_out = true;
+                            None
+                        }
+                        None => None,
+                    },
+                    View::Dashboard => dashboard::ui(ui, &self.devices, &self.readings, self.loaded, unit)
                         .map(|serial| View::Device(DeviceView::new(serial))),
                 };
                 if let Some(next) = next {
                     self.view = next;
+                }
+                if signed_out {
+                    self.signed_out();
                 }
             });
         });

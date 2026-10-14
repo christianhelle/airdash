@@ -124,7 +124,7 @@ impl AuthClient {
             })
             .unwrap_or(text);
         if status.as_u16() == 400 || status.as_u16() == 401 {
-            return Err(Error::Other(format!("Airthings rejected the sign-in: {message}")));
+            return Err(Error::Rejected(message));
         }
         Err(Error::Api { status: status.as_u16(), message })
     }

@@ -6,6 +6,7 @@ mod backend;
 mod chart;
 mod format;
 mod sensors;
+mod single_instance;
 mod theme;
 mod tray;
 mod views;
@@ -15,6 +16,9 @@ mod widgets;
 pub const ICON_PNG: &[u8] = include_bytes!("../../src-tauri/icons/128x128.png");
 
 fn main() -> eframe::Result {
+    let single_instance::Instance::Primary(instance) = single_instance::acquire() else {
+        return Ok(());
+    };
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("AirDash")
         .with_inner_size([1200.0, 800.0])
@@ -30,6 +34,8 @@ fn main() -> eframe::Result {
         "AirDash",
         options,
         Box::new(|cc| {
+            let ctx = cc.egui_ctx.clone();
+            single_instance::listen(instance, move || tray::show_window(&ctx));
             let backend = backend::Backend::new(cc.egui_ctx.clone())?;
             Ok(Box::new(app::AirDashApp::new(&cc.egui_ctx, backend)))
         }),

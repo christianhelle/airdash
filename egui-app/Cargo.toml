@@ -11,6 +11,7 @@ chrono = { version = "0.4.45", default-features = false, features = ["clock", "s
 dirs = "7.0.0"
 eframe = "0.36.2"
 egui = "0.36.2"
+egui_plot = "0.37.0"
 open = "5.4.4"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "query", "http2", "system-proxy"] }
 tokio = { version = "1.53.3", features = ["rt-multi-thread"] }

@@ -3,6 +3,7 @@
 
 mod app;
 mod backend;
+mod chart;
 mod format;
 mod sensors;
 mod views;

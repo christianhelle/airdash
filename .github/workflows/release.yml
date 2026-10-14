@@ -30,10 +30,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: egui-app
 
-      - run: cargo build --release --manifest-path egui-app/Cargo.toml
+      - run: cargo build --release
         env:
           AIRDASH_CLIENT_ID: ${{ secrets.AIRDASH_CLIENT_ID }}
           AIRDASH_CLIENT_SECRET: ${{ secrets.AIRDASH_CLIENT_SECRET }}
@@ -41,4 +39,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: airdash-egui-${{ runner.os }}
-          path: egui-app/target/release/${{ matrix.binary }}
+          path: target/release/${{ matrix.binary }}

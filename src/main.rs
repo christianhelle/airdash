@@ -13,7 +13,7 @@ mod views;
 mod widgets;
 
 /// Window and tray icon.
-pub const ICON_PNG: &[u8] = include_bytes!("../../assets/icon.png");
+pub const ICON_PNG: &[u8] = include_bytes!("../assets/icon.png");
 
 fn main() -> eframe::Result {
     let single_instance::Instance::Primary(instance) = single_instance::acquire() else {

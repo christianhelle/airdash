@@ -5,8 +5,11 @@ description = "Desktop dashboard for Airthings air quality monitors, built with 
 authors = ["Christian Helle"]
 edition = "2024"
 
+[workspace]
+members = ["core"]
+
 [dependencies]
-airdash-core = { path = "../core" }
+airdash-core = { path = "core" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 dirs = "7.0.0"
 eframe = "0.36.2"

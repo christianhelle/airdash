@@ -73,10 +73,14 @@ impl LoginView {
                             ui.weak(" and paste its client ID and secret here. You only need to do this once.");
                         });
                         ui.add_space(8.0);
-                        ui.label("Client ID");
-                        ui.add(egui::TextEdit::singleline(&mut self.client_id).desired_width(f32::INFINITY));
-                        ui.label("Client secret");
-                        let secret = ui.add(egui::TextEdit::singleline(&mut self.client_secret).password(true).desired_width(f32::INFINITY));
+                        // Each field is labelled by its caption, so screen readers announce it.
+                        let caption = ui.label("Client ID");
+                        ui.add(egui::TextEdit::singleline(&mut self.client_id).desired_width(f32::INFINITY))
+                            .labelled_by(caption.id);
+                        let caption = ui.label("Client secret");
+                        let secret = ui
+                            .add(egui::TextEdit::singleline(&mut self.client_secret).password(true).desired_width(f32::INFINITY))
+                            .labelled_by(caption.id);
                         let submitted = secret.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                         ui.add_space(8.0);
                         let label = if busy && !self.waiting_for_browser { "Signing in…" } else { "Sign in" };

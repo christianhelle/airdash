@@ -1,5 +1,3 @@
-use serde::{Serialize, Serializer};
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("network error: {0}")]
@@ -20,9 +18,3 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-// Tauri commands return errors to the UI as plain strings.
-impl Serialize for Error {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.to_string())
-    }
-}

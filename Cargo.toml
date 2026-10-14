@@ -12,12 +12,19 @@ members = ["core"]
 airdash-core = { path = "core" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 dirs = "7.0.0"
-eframe = { version = "0.36.2", features = ["persistence"] }
+# glow (OpenGL) instead of the default wgpu: wgpu probes every graphics API at startup, which made launching
+# about 400 ms slower. Without wgpu, eframe renders with glow.
+eframe = { version = "0.36.2", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "wayland", "x11"] }
 egui = "0.36.2"
 egui-winit = { version = "0.36.2", default-features = false, features = ["serde"] }
 open = "5.4.4"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "query", "http2", "system-proxy"] }
 tokio = { version = "1.53.3", features = ["rt-multi-thread"] }
+
+# Keeps winit's default Linux features (Wayland window decorations, loading libwayland at runtime) that eframe
+# only turns on with its default features.
+[target.'cfg(target_os = "linux")'.dependencies]
+winit = "0.30.13"
 
 [profile.release]
 codegen-units = 1

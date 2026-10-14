@@ -30,6 +30,7 @@ chrono = { version = "0.4.45", default-features = false, features = ["clock", "s
 sha2 = "0.11.1"
 base64 = "0.23.1"
 rand = "0.10.3"
+keyring = "4.2.0"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

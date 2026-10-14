@@ -2,6 +2,7 @@ pub mod api;
 pub mod auth;
 pub mod error;
 pub mod secrets;
+pub mod session;
 pub mod store;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/

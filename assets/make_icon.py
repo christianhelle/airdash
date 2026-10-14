@@ -1,39 +1,46 @@
-"""Draws the AirDash icon: a slate ring around a slate disc with white air-flow waves.
+"""Draws the AirDash icon: a slate ring around a slate disc with a white peak.
 
 Usage: python assets/make_icon.py   (needs Pillow; writes icon.png and the Windows icon.ico next to this script)
 """
-import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 
 SLATE = (75, 90, 99, 255)
 WHITE = (255, 255, 255, 255)
+CLEAR = (0, 0, 0, 0)
 BIG = 1024  # draw large, then downscale for smooth edges
 
 
-def draw() -> Image.Image:
-    img = Image.new("RGBA", (BIG, BIG), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    c = BIG / 2
-    outer, ring = 0.48 * BIG, 0.07 * BIG
-    d.ellipse([c - outer, c - outer, c + outer, c + outer], fill=SLATE)
-    inner_gap = outer - ring
-    d.ellipse([c - inner_gap, c - inner_gap, c + inner_gap, c + inner_gap], fill=(0, 0, 0, 0))
-    disc = 0.355 * BIG
-    d.ellipse([c - disc, c - disc, c + disc, c + disc], fill=SLATE)
+def circle(d: ImageDraw.ImageDraw, c: float, r: float, fill) -> None:
+    d.ellipse([c - r, c - r, c + r, c + r], fill=fill)
 
-    # Two offset air-flow waves, like a breeze. Stamped as discs for smooth, even strokes.
-    r = 0.03 * BIG
-    for dy, dx, half_len in ((-0.08, -0.03, 0.19), (0.08, 0.05, 0.15)):
-        y0, x0 = c + dy * BIG, c + dx * BIG
-        steps = 1500
-        for i in range(steps + 1):
-            t = -1 + 2 * i / steps
-            x = x0 + t * half_len * BIG
-            y = y0 - math.sin(t * math.pi * 1.25) * 0.032 * BIG
-            d.ellipse([x - r, y - r, x + r, y + r], fill=WHITE)
-    return img
+
+def draw() -> Image.Image:
+    c = BIG / 2
+    disc = 0.355 * BIG
+
+    # Ring with a transparent gap, then the solid disc inside it.
+    img = Image.new("RGBA", (BIG, BIG), CLEAR)
+    d = ImageDraw.Draw(img)
+    circle(d, c, 0.48 * BIG, SLATE)
+    circle(d, c, 0.41 * BIG, CLEAR)
+    circle(d, c, disc, SLATE)
+
+    # The peak, drawn on its own layer and clipped to the disc: an "A" outline on top of a solid base.
+    peak = Image.new("RGBA", (BIG, BIG), CLEAR)
+    p = ImageDraw.Draw(peak)
+    apex_y, base_y, half_base = c - 0.21 * BIG, c + 0.40 * BIG, 0.30 * BIG
+    p.polygon([(c, apex_y), (c + half_base, base_y), (c - half_base, base_y)], fill=WHITE)
+    slope = half_base / (base_y - apex_y)
+    hole_top, hole_floor = apex_y + 0.13 * BIG, c + 0.08 * BIG
+    hole_half = (hole_floor - hole_top) * slope
+    p.polygon([(c, hole_top), (c + hole_half, hole_floor), (c - hole_half, hole_floor)], fill=CLEAR)
+
+    mask = Image.new("L", (BIG, BIG), 0)
+    circle(ImageDraw.Draw(mask), c, disc, 255)
+    peak.putalpha(Image.composite(peak.getchannel("A"), mask, mask))
+    return Image.alpha_composite(img, peak)
 
 
 if __name__ == "__main__":

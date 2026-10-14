@@ -151,6 +151,12 @@ impl eframe::App for AirDashApp {
         false
     }
 
+    // Save the window's size and position soon after every move or resize, not only at exit. eframe writes the
+    // file only when something changed, so idle seconds cost nothing.
+    fn auto_save_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(1)
+    }
+
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         if let Some(window) = &self.window {
             eframe::set_value(storage, WINDOW_STATE_KEY, window);

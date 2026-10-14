@@ -5,6 +5,7 @@ mod app;
 mod backend;
 mod format;
 mod sensors;
+mod views;
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {

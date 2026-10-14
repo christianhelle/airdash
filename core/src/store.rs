@@ -30,6 +30,10 @@ CREATE TABLE IF NOT EXISTS readings (
     unit         TEXT NOT NULL,
     PRIMARY KEY (serial, sensor_type, recorded)
 ) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS device_order (
+    serial    TEXT PRIMARY KEY,
+    position  INTEGER NOT NULL
+) WITHOUT ROWID;
 ";
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -79,7 +83,12 @@ impl Store {
 
     pub fn devices(&self) -> Result<Vec<Device>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT serial, name, type, home, sensors FROM devices ORDER BY home, name")?;
+        // Devices the user has arranged come first, in their order; new ones follow by home and name.
+        let mut stmt = conn.prepare(
+            "SELECT d.serial, d.name, d.type, d.home, d.sensors FROM devices d
+             LEFT JOIN device_order o ON o.serial = d.serial
+             ORDER BY o.position IS NULL, o.position, d.home, d.name",
+        )?;
         let rows = stmt.query_map([], |row| {
             let sensors: String = row.get(4)?;
             Ok(Device {
@@ -91,6 +100,21 @@ impl Store {
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Remember the order the user arranged devices in. Serials not listed keep the default order after these.
+    pub fn set_device_order(&self, serials: &[String]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM device_order", [])?;
+        {
+            let mut insert = tx.prepare("INSERT OR IGNORE INTO device_order (serial, position) VALUES (?1, ?2)")?;
+            for (position, serial) in serials.iter().enumerate() {
+                insert.execute(params![serial, position as i64])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
     }
 
     /// Record a poll. Returns how many new readings were stored; repeated polls of the same sample add nothing.
@@ -335,6 +359,26 @@ mod tests {
 
         assert_eq!(store.devices().unwrap(), vec![device("B", "Bedroom")]);
         assert_eq!(store.sensor_types("A").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn devices_follow_the_saved_order_and_new_ones_come_last() {
+        let store = Store::open_in_memory().unwrap();
+        store.replace_devices(&[device("A", "Attic"), device("B", "Bedroom"), device("C", "Cellar")]).unwrap();
+        store.set_device_order(&["C".into(), "A".into()]).unwrap();
+
+        let serials: Vec<_> = store.devices().unwrap().into_iter().map(|d| d.serial_number).collect();
+        assert_eq!(serials, ["C", "A", "B"]);
+    }
+
+    #[test]
+    fn device_order_survives_device_refresh() {
+        let store = Store::open_in_memory().unwrap();
+        store.replace_devices(&[device("A", "Attic"), device("B", "Bedroom")]).unwrap();
+        store.set_device_order(&["B".into(), "A".into()]).unwrap();
+        store.replace_devices(&[device("A", "Attic"), device("B", "Bedroom")]).unwrap();
+
+        assert_eq!(store.devices().unwrap()[0].serial_number, "B");
     }
 
     #[test]

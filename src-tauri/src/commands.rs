@@ -166,18 +166,12 @@ pub fn set_paused(state: State<'_, AppState>, paused: bool) {
 
 #[tauri::command]
 pub async fn remote_control(state: State<'_, AppState>, serial: String) -> Result<Option<RemoteControlState>> {
-    let session = &state.session;
-    let account = session.account_id().await?;
-    let (account, serial) = (account.as_str(), serial.as_str());
-    session.call(|t| async move { session.api().remote_control(&t, account, serial).await }).await
+    state.session.remote_control(&serial).await
 }
 
 #[tauri::command]
 pub async fn set_remote_control(state: State<'_, AppState>, serial: String, mode: RemoteControlState) -> Result<()> {
-    let session = &state.session;
-    let account = session.account_id().await?;
-    let (account, serial, mode) = (account.as_str(), serial.as_str(), &mode);
-    session.call(|t| async move { session.api().set_remote_control(&t, account, serial, mode).await }).await
+    state.session.set_remote_control(&serial, &mode).await
 }
 
 #[tauri::command]

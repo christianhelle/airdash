@@ -192,6 +192,7 @@ name = "airdash-egui"
 version = "0.1.0"
 dependencies = [
  "airdash-core",
+ "chrono",
  "eframe",
  "egui",
 ]

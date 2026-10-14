@@ -4,8 +4,10 @@ use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use tokio::net::TcpListener;
+
 use crate::api::ApiClient;
-use crate::auth::{AuthClient, Credentials, TokenResponse};
+use crate::auth::{self, AuthClient, Credentials, Pkce, TokenResponse, DEFAULT_AUTHORIZE_URL};
 use crate::error::{Error, Result};
 use crate::secrets::SecretStore;
 
@@ -13,6 +15,8 @@ use crate::secrets::SecretStore;
 const EXPIRY_MARGIN: Duration = Duration::from_secs(60);
 /// Assumed token lifetime when Airthings does not say.
 const DEFAULT_LIFETIME: Duration = Duration::from_secs(3600);
+/// How long to wait for the user to finish signing in in the browser.
+const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 
 struct Token {
     access_token: String,
@@ -86,6 +90,38 @@ impl Session {
         *self.account_id.lock().unwrap() = None;
         *self.token.try_lock().map_err(|_| Error::Other("sign-in already in progress".into()))? = Some(Token::from_response(resp));
         Ok(())
+    }
+
+    /// Sign in through the Airthings login page: `open_browser` is handed the authorize URL, and the
+    /// result comes back to a loopback listener on `redirect_port`.
+    pub async fn sign_in_oauth(
+        &self,
+        client_id: String,
+        client_secret: Option<String>,
+        redirect_port: u16,
+        open_browser: impl FnOnce(String) -> Result<()>,
+    ) -> Result<()> {
+        let listener = TcpListener::bind(("127.0.0.1", redirect_port))
+            .await
+            .map_err(|e| Error::Other(format!("could not listen for the sign-in redirect on port {redirect_port}: {e}")))?;
+
+        let pkce = Pkce::generate();
+        let csrf_state = auth::random_token();
+        let redirect_uri = auth::redirect_uri(redirect_port);
+        open_browser(auth::authorize_url(DEFAULT_AUTHORIZE_URL, &client_id, &redirect_uri, &csrf_state, &pkce.challenge)?)?;
+
+        let code = tokio::time::timeout(SIGN_IN_TIMEOUT, auth::wait_for_code(listener, &csrf_state))
+            .await
+            .map_err(|_| Error::Other("timed out waiting for the Airthings sign-in".into()))??;
+        let resp = self
+            .auth
+            .exchange_code(&client_id, client_secret.as_deref(), &code, &redirect_uri, &pkce.verifier)
+            .await?;
+        let refresh_token = resp
+            .refresh_token
+            .clone()
+            .ok_or_else(|| Error::Other("Airthings did not return a refresh token".into()))?;
+        self.complete_sign_in(Credentials::RefreshToken { client_id, client_secret, refresh_token }, &resp)
     }
 
     pub async fn sign_out(&self) {
@@ -277,6 +313,31 @@ mod tests {
         assert!(matches!(session.access_token().await, Err(Error::Unauthorized)));
         assert!(!session.is_signed_in());
         assert_eq!(secrets.load(), None);
+    }
+
+    #[tokio::test]
+    async fn oauth_sign_in_exchanges_the_code_from_the_browser_redirect() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_partial_json(json!({"grant_type": "authorization_code", "code": "xyz"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"access_token": "a", "refresh_token": "r", "expires_in": 3600})))
+            .mount(&server)
+            .await;
+        let secrets = Arc::new(MemoryStore::default());
+        let session = session(&server, secrets.clone());
+        let port = 53999;
+
+        // Stand in for the browser: follow the authorize URL's state back to the loopback redirect.
+        let browser = |url: String| {
+            let url = reqwest::Url::parse(&url).unwrap();
+            let state = url.query_pairs().find(|(k, _)| k == "state").unwrap().1.into_owned();
+            tokio::spawn(reqwest::get(format!("{}?code=xyz&state={state}", auth::redirect_uri(port))));
+            Ok(())
+        };
+        session.sign_in_oauth("id".into(), None, port, browser).await.unwrap();
+
+        assert!(matches!(secrets.load(), Some(Credentials::RefreshToken { refresh_token, .. }) if refresh_token == "r"));
+        assert_eq!(session.access_token().await.unwrap(), "a");
     }
 
     #[tokio::test]

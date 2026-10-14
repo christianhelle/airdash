@@ -22,6 +22,17 @@ pub fn group_by_home(devices: &[Device]) -> Vec<(String, Vec<&Device>)> {
     groups
 }
 
+/// `serials` with `dragged` moved next to `target`: just before it, or just after it when `after` is set.
+pub fn reorder(serials: &[String], dragged: &str, target: &str, after: bool) -> Vec<String> {
+    if dragged == target || !serials.iter().any(|s| s == dragged) {
+        return serials.to_vec();
+    }
+    let mut order: Vec<String> = serials.iter().filter(|s| *s != dragged).cloned().collect();
+    let at = order.iter().position(|s| s == target).map(|i| if after { i + 1 } else { i }).unwrap_or(order.len());
+    order.insert(at, dragged.to_owned());
+    order
+}
+
 pub fn parse_recorded(recorded: Option<&str>) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(recorded?).ok().map(|t| t.timestamp())
 }
@@ -135,6 +146,25 @@ mod tests {
         let groups = group_by_home(&devices);
         let names: Vec<_> = groups.iter().map(|(h, d)| (h.as_str(), d.iter().map(|d| d.serial_number.as_str()).collect::<Vec<_>>())).collect();
         assert_eq!(names, vec![("Cabin", vec!["A", "C"]), ("Devices", vec!["B", "D"])]);
+    }
+
+    fn serials(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn moves_a_device_before_or_after_another() {
+        let order = serials(&["A", "B", "C", "D"]);
+        assert_eq!(reorder(&order, "D", "B", false), serials(&["A", "D", "B", "C"]));
+        assert_eq!(reorder(&order, "A", "C", true), serials(&["B", "C", "A", "D"]));
+        assert_eq!(reorder(&order, "B", "D", true), serials(&["A", "C", "D", "B"]));
+    }
+
+    #[test]
+    fn dropping_on_itself_or_unknown_devices_changes_nothing() {
+        let order = serials(&["A", "B"]);
+        assert_eq!(reorder(&order, "A", "A", true), order);
+        assert_eq!(reorder(&order, "X", "A", false), order);
     }
 
     #[test]

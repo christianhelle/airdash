@@ -54,11 +54,11 @@ impl SecretStore for KeychainStore {
 
     fn save(&self, credentials: &Credentials) -> Result<()> {
         let json = serde_json::to_string(credentials).map_err(|e| Error::Other(e.to_string()))?;
-        if let Some(entry) = Self::entry() {
-            if entry.set_password(&json).is_ok() {
-                let _ = std::fs::remove_file(&self.fallback_path);
-                return Ok(());
-            }
+        if let Some(entry) = Self::entry()
+            && entry.set_password(&json).is_ok()
+        {
+            let _ = std::fs::remove_file(&self.fallback_path);
+            return Ok(());
         }
         self.save_fallback(&json)
     }

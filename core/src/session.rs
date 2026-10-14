@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use tokio::net::TcpListener;
 
-use crate::api::{ApiClient, RemoteControlState};
+use crate::api::ApiClient;
 use crate::auth::{self, AuthClient, Credentials, Pkce, TokenResponse, DEFAULT_AUTHORIZE_URL};
 use crate::error::{Error, Result};
 use crate::secrets::SecretStore;
@@ -194,19 +194,6 @@ impl Session {
         Ok(id)
     }
 
-    /// Last mode reported by a Renew air purifier, or `None` if it has never synced one.
-    pub async fn remote_control(&self, serial: &str) -> Result<Option<RemoteControlState>> {
-        let account = self.account_id().await?;
-        let account = account.as_str();
-        self.call(|t| async move { self.api.remote_control(&t, account, serial).await }).await
-    }
-
-    /// Queue a mode change for a Renew air purifier. It applies the next time the device syncs.
-    pub async fn set_remote_control(&self, serial: &str, state: &RemoteControlState) -> Result<()> {
-        let account = self.account_id().await?;
-        let account = account.as_str();
-        self.call(|t| async move { self.api.set_remote_control(&t, account, serial, state).await }).await
-    }
 }
 
 /// Airthings may hand out a new refresh token with each refresh; keep the latest one.

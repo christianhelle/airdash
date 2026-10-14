@@ -8,8 +8,12 @@ edition = "2024"
 [dependencies]
 airdash-core = { path = "../core" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+dirs = "7.0.0"
 eframe = "0.36.2"
 egui = "0.36.2"
+open = "5.4.4"
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "query", "http2", "system-proxy"] }
+tokio = { version = "1.53.3", features = ["rt-multi-thread"] }
 
 [profile.release]
 codegen-units = 1

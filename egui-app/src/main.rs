@@ -1,6 +1,8 @@
 // Prevents an extra console window on Windows in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app;
+mod backend;
 mod format;
 mod sensors;
 
@@ -12,7 +14,12 @@ fn main() -> eframe::Result {
             .with_min_inner_size([480.0, 360.0]),
         ..Default::default()
     };
-    eframe::run_ui_native("AirDash", options, |ui, _frame| {
-        ui.heading("AirDash");
-    })
+    eframe::run_native(
+        "AirDash",
+        options,
+        Box::new(|cc| {
+            let backend = backend::Backend::new(cc.egui_ctx.clone())?;
+            Ok(Box::new(app::AirDashApp::new(backend)))
+        }),
+    )
 }

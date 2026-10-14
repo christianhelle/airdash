@@ -31,6 +31,8 @@ pub struct AirDashApp {
     login: LoginView,
     /// `None` when the platform has no tray, in which case closing the window quits.
     tray: Option<Tray>,
+    /// Explaining, the first time the window is closed, that AirDash keeps running in the tray.
+    close_notice: bool,
 }
 
 impl AirDashApp {
@@ -53,6 +55,7 @@ impl AirDashApp {
             view: View::Dashboard,
             login: LoginView::default(),
             tray,
+            close_notice: false,
         };
         app.refresh_auth();
         app
@@ -129,6 +132,60 @@ impl AirDashApp {
     }
 }
 
+impl AirDashApp {
+    fn close_notice_ui(&mut self, ctx: &egui::Context) {
+        enum Choice {
+            KeepRunning,
+            Quit,
+        }
+        let mut choice = None;
+        let modal = egui::Modal::new(egui::Id::new("close-notice")).show(ctx, |ui| {
+            ui.set_max_width(420.0);
+            ui.heading("AirDash keeps recording");
+            ui.add_space(4.0);
+            ui.label(
+                "Closing the window keeps AirDash running in the background, so it can keep recording your readings. \
+                 Open it again from the AirDash icon in the system tray, or by launching AirDash again. \
+                 To stop it completely, choose Quit in the tray icon's menu.",
+            );
+            ui.add_space(4.0);
+            ui.weak("You can make closing the window quit AirDash in Settings, under Recording.");
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button("Keep running in the background").clicked() {
+                    choice = Some(Choice::KeepRunning);
+                }
+                if ui.button("Quit AirDash").clicked() {
+                    choice = Some(Choice::Quit);
+                }
+            });
+        });
+        if choice.is_none() {
+            // Escape or a click outside just keeps the window open.
+            if modal.should_close() {
+                self.close_notice = false;
+            }
+            return;
+        }
+
+        self.close_notice = false;
+        let settings = Settings { tray_notice_seen: true, ..self.settings.clone() };
+        match self.backend.save_settings(settings) {
+            Ok(saved) => self.settings = saved,
+            Err(e) => self.error = Some(e.to_string()),
+        }
+        match choice {
+            Some(Choice::KeepRunning) => ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false)),
+            _ => {
+                if let Some(tray) = &self.tray {
+                    tray.quitting.store(true, std::sync::atomic::Ordering::SeqCst);
+                }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+        }
+    }
+}
+
 impl eframe::App for AirDashApp {
     // Runs even while the window is hidden in the tray.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -136,12 +193,20 @@ impl eframe::App for AirDashApp {
         let quitting = tray.quitting.load(std::sync::atomic::Ordering::SeqCst);
         if ctx.input(|i| i.viewport().close_requested()) && self.settings.close_to_tray && !quitting {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            if self.settings.tray_notice_seen {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            } else {
+                // Some desktops show no tray icon, so say where AirDash went before hiding it.
+                self.close_notice = true;
+            }
         }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.handle_events();
+        if self.close_notice {
+            self.close_notice_ui(ui.ctx());
+        }
 
         if !self.auth.signed_in {
             egui::CentralPanel::default().show(ui, |ui| {

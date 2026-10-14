@@ -101,6 +101,8 @@ impl SettingsView {
             if ui.button("Save").clicked() {
                 self.draft.oauth_client_id = Some(self.oauth_client_id.clone());
                 self.draft.oauth_client_secret = Some(self.oauth_client_secret.clone());
+                // Not edited on this page; keep whatever the app has recorded since it opened.
+                self.draft.tray_notice_seen = backend.settings().tray_notice_seen;
                 match backend.save_settings(self.draft.clone()) {
                     Ok(saved) => {
                         *self = SettingsView { message: "Settings saved.".into(), ..SettingsView::new(&saved) };

@@ -12,7 +12,7 @@ members = ["core"]
 airdash-core = { path = "core" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 dirs = "7.0.0"
-eframe = "0.36.2"
+eframe = { version = "0.36.2", features = ["persistence"] }
 egui = "0.36.2"
 egui_plot = "0.37.0"
 open = "5.4.4"

@@ -21,6 +21,9 @@ fn main() -> eframe::Result {
     };
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("AirDash")
+        // Also names the folder eframe saves the window size and position in: the app's own data folder.
+        .with_app_id(backend::APP_IDENTIFIER)
+        // The size on first launch; after that the last size is restored.
         .with_inner_size([1200.0, 800.0])
         .with_min_inner_size([480.0, 360.0]);
     if let Ok(icon) = eframe::icon_data::from_png_bytes(ICON_PNG) {

@@ -187,6 +187,11 @@ impl AirDashApp {
 }
 
 impl eframe::App for AirDashApp {
+    // Only the window's size and position are restored on the next launch, not scroll positions and the like.
+    fn persist_egui_memory(&self) -> bool {
+        false
+    }
+
     // Runs even while the window is hidden in the tray.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let Some(tray) = &self.tray else { return };

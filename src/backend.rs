@@ -17,7 +17,7 @@ use airdash_core::store::Store;
 use tokio::runtime::Runtime;
 
 /// The folders the earlier Tauri version used, so existing settings, history and sign-in carry over.
-const APP_IDENTIFIER: &str = "com.christianhelle.airdash";
+pub const APP_IDENTIFIER: &str = "com.christianhelle.airdash";
 
 /// The result of background work, picked up by the UI on a later frame.
 pub struct Task<T>(Receiver<T>);

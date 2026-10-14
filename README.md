@@ -77,6 +77,7 @@ Tests and checks:
 ```bash
 npm test
 npm run check
+cargo test --manifest-path core/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
@@ -86,18 +87,35 @@ Release build (installers end up in `src-tauri/target/release/bundle`):
 npm run tauri build
 ```
 
+### Pure Rust version (egui)
+
+`egui-app/` is the same app without a web view: an [egui](https://github.com/emilk/egui) UI on top of the shared
+`airdash-core` crate. It has the same features (dashboard, history charts, CSV export, Renew controls, settings,
+tray icon) and uses the same settings, history database and stored sign-in as the Tauri app, so you can switch
+between them. It needs only Rust to build:
+
+```bash
+cargo run --manifest-path egui-app/Cargo.toml
+cargo test --manifest-path egui-app/Cargo.toml
+cargo build --release --manifest-path egui-app/Cargo.toml
+```
+
+The OAuth client is compiled in the same way, through `AIRDASH_CLIENT_ID` and `AIRDASH_CLIENT_SECRET`. On Linux
+the tray icon uses the StatusNotifierItem D-Bus protocol, so GTK is not needed.
+
 ### Layout
 
 | Path | What |
 | --- | --- |
-| `src-tauri/src/api.rs` | Typed Consumer API client |
-| `src-tauri/src/auth.rs` | OAuth (PKCE and loopback redirect) and client-credentials token requests |
-| `src-tauri/src/session.rs` | Access-token caching, refresh and the retry on 401 |
-| `src-tauri/src/secrets.rs` | Keychain credential storage |
-| `src-tauri/src/store.rs` | SQLite reading history |
-| `src-tauri/src/poller.rs` | Background polling that respects rate limits |
-| `src-tauri/src/commands.rs` | Commands the UI calls |
-| `src/lib/` | UI: API wrappers, sensor metadata, components and views |
+| `core/src/api.rs` | Typed Consumer API client |
+| `core/src/auth.rs` | OAuth (PKCE and loopback redirect) and client-credentials token requests |
+| `core/src/session.rs` | Access-token caching, refresh, the retry on 401 and the browser sign-in flow |
+| `core/src/secrets.rs` | Keychain credential storage |
+| `core/src/store.rs` | SQLite reading history |
+| `core/src/poller.rs` | Background polling that respects rate limits |
+| `src-tauri/src/commands.rs` | Commands the Svelte UI calls |
+| `src/lib/` | Svelte UI: API wrappers, sensor metadata, components and views |
+| `egui-app/src/` | egui UI: backend wiring, views, charts, tray and sensor metadata |
 
 ## License
 

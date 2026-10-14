@@ -31,8 +31,11 @@ impl LoginView {
         let busy = self.task.is_some();
         let show_credentials = self.show_credentials.get_or_insert(!auth.oauth_available);
 
-        ui.vertical_centered(|ui| {
-            ui.add_space((ui.available_height() * 0.18).max(16.0));
+        // Measured outside the scroll area, whose own height is unbounded.
+        let top_space = (ui.available_height() * 0.18).max(16.0);
+        // Scrolls so nothing is cut off in a small window.
+        egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| ui.vertical_centered(|ui| {
+            ui.add_space(top_space);
             egui::Frame::group(ui.style()).inner_margin(24.0).corner_radius(8.0).show(ui, |ui| {
                 ui.set_width(380.0_f32.min(ui.available_width()));
                 ui.vertical(|ui| {
@@ -92,7 +95,8 @@ impl LoginView {
             });
             ui.add_space(12.0);
             ui.weak("AirDash is not made by Airthings. Readings are stored only on this computer.");
-        });
+            ui.add_space(16.0);
+        }));
         signed_in
     }
 }

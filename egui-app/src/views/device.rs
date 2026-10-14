@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use airdash_core::api::{Device, Unit};
+use airdash_core::api::{Device, RemoteControlState, Unit};
 use airdash_core::store::SensorInfo;
 use egui::{RichText, Ui};
 
@@ -15,6 +15,10 @@ use crate::sensors::{device_type_name, display_unit, sensor_label, sort_sensors}
 use crate::widgets;
 
 const MAX_POINTS: usize = 600;
+/// The Airthings Renew air purifier.
+const RENEW: &str = "AP_1";
+const MODES: [&str; 5] = ["AUTO", "SLEEP", "BOOST", "MANUAL", "OFF"];
+const DEFAULT_FAN_SPEED: u8 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Range {
@@ -71,6 +75,11 @@ pub struct DeviceView {
     /// The readings version the charts were loaded for.
     version: Option<u64>,
     export: Option<Task<Result<Option<String>>>>,
+    control: Option<RemoteControlState>,
+    control_fetch: Option<Task<Result<Option<RemoteControlState>>>>,
+    /// A mode change on its way to Airthings, and the state it sets.
+    control_send: Option<(Task<Result<()>>, RemoteControlState)>,
+    fan_speed: u8,
 }
 
 impl DeviceView {
@@ -84,6 +93,10 @@ impl DeviceView {
             message: String::new(),
             version: None,
             export: None,
+            control: None,
+            control_fetch: None,
+            control_send: None,
+            fan_speed: DEFAULT_FAN_SPEED,
         }
     }
 
@@ -118,6 +131,9 @@ impl DeviceView {
                 Err(e) => e.to_string(),
             };
         }
+        if self.version.is_none() && device.device_type == RENEW {
+            self.control_fetch = Some(backend.remote_control(&self.serial));
+        }
         if self.version != Some(version) {
             self.version = Some(version);
             self.load(backend);
@@ -149,6 +165,11 @@ impl DeviceView {
         }
         ui.add_space(8.0);
 
+        if device.device_type == RENEW {
+            self.purifier_controls(ui, backend);
+            ui.add_space(8.0);
+        }
+
         if self.loaded && self.sensors.is_empty() {
             widgets::card(ui).show(ui, |ui| {
                 ui.set_width(ui.available_width());
@@ -178,11 +199,73 @@ impl DeviceView {
         });
         back
     }
+
+    fn purifier_controls(&mut self, ui: &mut Ui, backend: &Backend) {
+        if let Some(result) = self.control_fetch.as_ref().and_then(Task::ready) {
+            self.control_fetch = None;
+            match result {
+                Ok(control) => {
+                    self.fan_speed = control.as_ref().and_then(|c| c.fan_speed).unwrap_or(DEFAULT_FAN_SPEED);
+                    self.control = control;
+                }
+                Err(e) => self.message = e.to_string(),
+            }
+        }
+        if let Some(result) = self.control_send.as_ref().and_then(|(task, _)| task.ready()) {
+            let (_, sent) = self.control_send.take().unwrap();
+            self.message = match result {
+                Ok(()) => {
+                    self.control = Some(sent);
+                    "Sent to the purifier. It applies the change the next time it syncs.".into()
+                }
+                Err(e) => e.to_string(),
+            };
+        }
+
+        let busy = self.control_send.is_some();
+        let mut send = None;
+        widgets::card(ui).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new("Purifier mode").strong());
+            ui.horizontal_wrapped(|ui| {
+                for mode in MODES {
+                    let active = self.control.as_ref().is_some_and(|c| c.mode == mode);
+                    if ui.add_enabled(!busy, egui::Button::selectable(active, mode_label(mode))).clicked() {
+                        send = Some(mode);
+                    }
+                }
+            });
+            if self.control.as_ref().is_some_and(|c| c.mode == "MANUAL") {
+                let slider = ui.add_enabled(!busy, egui::Slider::new(&mut self.fan_speed, 1..=5).text("Fan speed"));
+                if slider.drag_stopped() || (slider.changed() && !slider.dragged()) {
+                    send = Some("MANUAL");
+                }
+            }
+        });
+        if let Some(mode) = send {
+            let fan_speed = (mode == "MANUAL").then_some(self.fan_speed);
+            let state = RemoteControlState { mode: mode.into(), fan_speed };
+            self.control_send = Some((backend.set_remote_control(&self.serial, state.clone()), state));
+        }
+    }
+}
+
+/// "AUTO" -> "Auto"
+fn mode_label(mode: &str) -> String {
+    let lower = mode.to_lowercase();
+    let mut chars = lower.chars();
+    chars.next().map(|c| c.to_uppercase().chain(chars).collect()).unwrap_or_default()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn labels_purifier_modes() {
+        assert_eq!(mode_label("MANUAL"), "Manual");
+        assert_eq!(mode_label("OFF"), "Off");
+    }
 
     #[test]
     fn ranges_end_now() {

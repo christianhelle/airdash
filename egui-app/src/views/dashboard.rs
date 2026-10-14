@@ -37,9 +37,21 @@ pub fn parse_recorded(recorded: Option<&str>) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(recorded?).ok().map(|t| t.timestamp())
 }
 
-/// Returns the serial number of a device the user opened.
-pub fn ui(ui: &mut Ui, devices: &[Device], readings: &[DeviceSensors], loaded: bool, unit: Unit) -> Option<String> {
-    let mut opened = None;
+pub enum Action {
+    /// Open the device page for this serial number.
+    Open(String),
+    /// The user dragged a device to a new place; this is the full new order of serial numbers.
+    Reorder(Vec<String>),
+}
+
+/// What is being dragged. Devices can only move within their own home.
+struct DraggedDevice {
+    serial: String,
+    home: String,
+}
+
+pub fn ui(ui: &mut Ui, devices: &[Device], readings: &[DeviceSensors], loaded: bool, unit: Unit) -> Option<Action> {
+    let mut action = None;
     if devices.is_empty() {
         widgets::card(ui).show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -61,37 +73,47 @@ pub fn ui(ui: &mut Ui, devices: &[Device], readings: &[DeviceSensors], loaded: b
     let groups = group_by_home(devices);
     let show_headings = groups.len() > 1 || groups[0].0 != DEFAULT_HOME;
     let now = chrono::Utc::now().timestamp();
-    for (home, devices) in &groups {
+    for (home, home_devices) in &groups {
         if show_headings {
             ui.label(RichText::new(home).size(17.0).strong());
         }
-        widgets::grid(ui, devices, 340.0, 16.0, |ui, device| {
+        widgets::grid(ui, home_devices, 340.0, 16.0, |ui, device| {
             let reading = readings.iter().find(|r| r.serial_number == device.serial_number);
-            if device_card(ui, device, reading, unit, now) {
-                opened = Some(device.serial_number.clone());
+            match device_card(ui, device, home, reading, unit, now) {
+                Some(CardEvent::Clicked) => action = Some(Action::Open(device.serial_number.clone())),
+                Some(CardEvent::Dropped { serial, after }) => {
+                    let serials: Vec<String> = devices.iter().map(|d| d.serial_number.clone()).collect();
+                    action = Some(Action::Reorder(reorder(&serials, &serial, &device.serial_number, after)));
+                }
+                None => {}
             }
         });
         ui.add_space(12.0);
     }
-    opened
+    action
 }
 
-/// Returns true when clicked.
-fn device_card(ui: &mut Ui, device: &Device, reading: Option<&DeviceSensors>, unit: Unit, now: i64) -> bool {
+enum CardEvent {
+    Clicked,
+    /// Another device was dropped on this card, to go before or after it.
+    Dropped { serial: String, after: bool },
+}
+
+fn device_card(ui: &mut Ui, device: &Device, home: &str, reading: Option<&DeviceSensors>, unit: Unit, now: i64) -> Option<CardEvent> {
     let mut sensors: Vec<_> = reading.map(|r| r.sensors.iter().collect()).unwrap_or_default();
     sort_sensors(&mut sensors, |s| &s.sensor_type);
     let level = worst_level(sensors.iter().map(|s| (s.sensor_type.as_str(), s.value)));
     let recorded = reading.and_then(|r| parse_recorded(r.recorded.as_deref()));
+    let name = if device.name.is_empty() { &device.serial_number } else { &device.name };
 
     let response = ui
-        .scope_builder(UiBuilder::new().sense(Sense::click()), |ui| {
+        .scope_builder(UiBuilder::new().sense(Sense::click_and_drag()), |ui| {
             // Selectable text would swallow clicks meant for the card.
             ui.style_mut().interaction.selectable_labels = false;
             widgets::card(ui).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
-                        let name = if device.name.is_empty() { &device.serial_number } else { &device.name };
                         ui.label(RichText::new(name).size(16.0).strong());
                         ui.weak(device_type_name(&device.device_type));
                     });
@@ -121,15 +143,48 @@ fn device_card(ui: &mut Ui, device: &Device, reading: Option<&DeviceSensors>, un
             });
         })
         .response;
-    if response.hovered() {
-        ui.painter().rect_stroke(
-            response.rect,
-            10.0,
-            egui::Stroke::new(1.0, ui.visuals().hyperlink_color),
-            egui::StrokeKind::Inside,
-        );
+
+    response.dnd_set_drag_payload(DraggedDevice { serial: device.serial_number.clone(), home: home.to_owned() });
+    let accent = ui.visuals().hyperlink_color;
+    let rect = response.rect;
+
+    if response.dragged() {
+        // Fade the card being moved and carry its name along with the pointer.
+        ui.painter().rect_filled(rect, 10.0, ui.visuals().panel_fill.gamma_multiply(0.6));
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+        if let Some(pointer) = ui.ctx().pointer_interact_pos() {
+            let painter = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Tooltip, response.id));
+            let text_color = ui.visuals().text_color();
+            let galley = painter.layout_no_wrap(name.to_owned(), egui::FontId::proportional(15.0), text_color);
+            let size = galley.size() + egui::vec2(20.0, 12.0);
+            // Keep the label inside the window near the right and bottom edges.
+            let screen = ui.ctx().content_rect();
+            let min = (pointer + egui::vec2(12.0, 8.0)).min(screen.max - size);
+            let label = egui::Rect::from_min_size(min, size);
+            painter.rect(label, 8.0, ui.visuals().window_fill, egui::Stroke::new(1.0, accent), egui::StrokeKind::Inside);
+            painter.galley(label.min + egui::vec2(10.0, 6.0), galley, text_color);
+        }
+        return None;
     }
-    response.on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
+
+    // Only another device from the same home can be dropped here.
+    let droppable = |d: &DraggedDevice| d.home == home && d.serial != device.serial_number;
+    let after = ui.ctx().pointer_interact_pos().is_some_and(|p| p.x > rect.center().x);
+    if response.dnd_hover_payload::<DraggedDevice>().is_some_and(|d| droppable(&d)) {
+        // Show where the device will land: a bar on the near side of this card.
+        let clip = ui.clip_rect();
+        let x = if after { (rect.right() + 8.0).min(clip.right() - 2.0) } else { (rect.left() - 8.0).max(clip.left() + 2.0) };
+        ui.painter().line_segment([egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())], egui::Stroke::new(3.0, accent));
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+    }
+    if let Some(dragged) = response.dnd_release_payload::<DraggedDevice>().filter(|d| droppable(d)) {
+        return Some(CardEvent::Dropped { serial: dragged.serial.clone(), after });
+    }
+
+    if response.hovered() {
+        ui.painter().rect_stroke(rect, 10.0, egui::Stroke::new(1.0, accent), egui::StrokeKind::Inside);
+    }
+    response.on_hover_cursor(egui::CursorIcon::PointingHand).clicked().then_some(CardEvent::Clicked)
 }
 
 #[cfg(test)]

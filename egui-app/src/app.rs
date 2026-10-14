@@ -168,6 +168,7 @@ impl eframe::App for AirDashApp {
                 }
                 let unit = self.settings.unit;
                 let mut signed_out = false;
+                let mut reordered = None;
                 let next = match &mut self.view {
                     View::Device(view) => match self.devices.iter().find(|d| d.serial_number == view.serial) {
                         Some(device) => view.ui(ui, &self.backend, device, unit, self.readings_version).then_some(View::Dashboard),
@@ -187,14 +188,26 @@ impl eframe::App for AirDashApp {
                         }
                         None => None,
                     },
-                    View::Dashboard => dashboard::ui(ui, &self.devices, &self.readings, self.loaded, unit)
-                        .map(|serial| View::Device(DeviceView::new(serial))),
+                    View::Dashboard => match dashboard::ui(ui, &self.devices, &self.readings, self.loaded, unit) {
+                        Some(dashboard::Action::Open(serial)) => Some(View::Device(DeviceView::new(serial))),
+                        Some(dashboard::Action::Reorder(order)) => {
+                            reordered = Some(order);
+                            None
+                        }
+                        None => None,
+                    },
                 };
                 if let Some(next) = next {
                     self.view = next;
                 }
                 if signed_out {
                     self.signed_out();
+                }
+                if let Some(order) = reordered {
+                    match self.backend.store.set_device_order(&order) {
+                        Ok(()) => self.load_data(),
+                        Err(e) => self.error = Some(e.to_string()),
+                    }
                 }
             });
         });

@@ -5,6 +5,7 @@ description = "Client for the Airthings Consumer API, with OAuth sign-in and tok
 authors = ["Christian Helle"]
 edition = "2024"
 license = "MIT"
+repository = "https://github.com/christianhelle/airdash"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

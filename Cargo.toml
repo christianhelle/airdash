@@ -5,6 +5,7 @@ description = "Desktop dashboard for Airthings air quality monitors"
 authors = ["Christian Helle"]
 edition = "2024"
 license = "MIT"
+repository = "https://github.com/christianhelle/airdash"
 
 [workspace]
 members = ["airthings", "core"]

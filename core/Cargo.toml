@@ -5,6 +5,7 @@ description = "Refreshing, credential storage and the saved app state for AirDas
 authors = ["Christian Helle"]
 edition = "2024"
 license = "MIT"
+repository = "https://github.com/christianhelle/airdash"
 
 [dependencies]
 airthings = { path = "../airthings", version = "0.1.0" }

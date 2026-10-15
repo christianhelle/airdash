@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Refreshing, credential storage and the saved app state for AirDash"
 authors = ["Christian Helle"]
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 airthings = { path = "../airthings", version = "0.1.0" }

@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Desktop dashboard for Airthings air quality monitors"
 authors = ["Christian Helle"]
 edition = "2024"
+license = "MIT"
 
 [workspace]
 members = ["airthings", "core"]

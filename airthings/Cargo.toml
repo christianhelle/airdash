@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Client for the Airthings Consumer API, with OAuth sign-in and token refresh"
 authors = ["Christian Helle"]
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

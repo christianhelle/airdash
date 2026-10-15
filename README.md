@@ -60,10 +60,10 @@ Release builds for Windows, macOS and Linux are attached to a draft GitHub relea
 | `src/widgets.rs` | Cards, level badges and sensor tiles |
 | `src/sensors.rs` | Sensor labels, units, conversions and air-quality levels |
 | `src/single_instance.rs` | The single running instance |
-| `airthings/src/api.rs` | Typed Consumer API client |
-| `airthings/src/auth.rs` | OAuth (PKCE and loopback redirect) and client-credentials token requests |
-| `airthings/src/session.rs` | Access-token caching, refresh, the retry on 401 and the browser sign-in flow |
-| `airthings/src/store.rs` | Where a session keeps its credentials, with an in-memory store |
+| `airthings-client/src/api.rs` | Typed Consumer API client |
+| `airthings-client/src/auth.rs` | OAuth (PKCE and loopback redirect) and client-credentials token requests |
+| `airthings-client/src/session.rs` | Access-token caching, refresh, the retry on 401 and the browser sign-in flow |
+| `airthings-client/src/store.rs` | Where a session keeps its credentials, with an in-memory store |
 | `core/src/secrets.rs` | Keychain credential storage |
 | `core/src/refresh.rs` | Fetching the devices and their latest readings |
 | `core/src/state.rs` | The saved dashboard state and device order |

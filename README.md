@@ -71,4 +71,3 @@ published to crates.io, when a `v*` tag is pushed.
 ## License
 
 MIT
-

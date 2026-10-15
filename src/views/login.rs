@@ -1,10 +1,9 @@
 //! Sign-in screen: Airthings browser sign-in, or the user's own API client.
 
-use airdash_core::auth::redirect_uri;
-use airdash_core::error::Result;
-use airdash_core::settings::Settings;
-
+use crate::auth::redirect_uri;
 use crate::backend::{AuthInfo, Backend, Task};
+use crate::error::Result;
+use crate::settings::Settings;
 
 const MY_APPLICATIONS: &str = "https://consumer-api-doc.airthings.com/dashboard";
 

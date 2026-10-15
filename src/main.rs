@@ -3,11 +3,19 @@
 
 use std::sync::{Arc, OnceLock};
 
+mod api;
 mod app;
+mod auth;
 mod backend;
+mod error;
 mod format;
+mod refresh;
+mod secrets;
+mod session;
+mod settings;
 mod sensors;
 mod single_instance;
+mod state;
 mod theme;
 mod views;
 mod widgets;

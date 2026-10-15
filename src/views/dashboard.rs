@@ -1,8 +1,8 @@
 //! Every device on the account, grouped by home, with its latest values.
 
-use airdash_core::api::{Device, DeviceSensors, Unit};
 use egui::{RichText, Sense, Ui, UiBuilder};
 
+use crate::api::{Device, DeviceSensors, Unit};
 use crate::format::time_ago;
 use crate::sensors::{device_type_name, sort_sensors, worst_level};
 use crate::widgets;

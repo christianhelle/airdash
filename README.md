@@ -44,12 +44,13 @@ Prerequisites: [Rust](https://rustup.rs). On Linux, also `pkg-config`, `libdbus-
 
 ```bash
 cargo run
-cargo test --workspace
-cargo clippy --workspace --all-targets
+cargo test
+cargo clippy --all-targets
 cargo build --release
 ```
 
-Release builds for Windows, macOS and Linux are attached to a draft GitHub release when a `v*` tag is pushed.
+Release builds for Windows, macOS and Linux are attached to a draft GitHub release, and the `airdash` crate is
+published to crates.io, when a `v*` tag is pushed.
 
 ### Layout
 
@@ -60,12 +61,12 @@ Release builds for Windows, macOS and Linux are attached to a draft GitHub relea
 | `src/widgets.rs` | Cards, level badges and sensor tiles |
 | `src/sensors.rs` | Sensor labels, units, conversions and air-quality levels |
 | `src/single_instance.rs` | The single running instance |
-| `core/src/api.rs` | Typed Consumer API client |
-| `core/src/auth.rs` | OAuth (PKCE and loopback redirect) and client-credentials token requests |
-| `core/src/session.rs` | Access-token caching, refresh, the retry on 401 and the browser sign-in flow |
-| `core/src/secrets.rs` | Keychain credential storage |
-| `core/src/refresh.rs` | Fetching the devices and their latest readings |
-| `core/src/state.rs` | The saved dashboard state and device order |
+| `src/api.rs` | Typed Consumer API client |
+| `src/auth.rs` | OAuth (PKCE and loopback redirect) and client-credentials token requests |
+| `src/session.rs` | Access-token caching, refresh, the retry on 401 and the browser sign-in flow |
+| `src/secrets.rs` | Keychain credential storage |
+| `src/refresh.rs` | Fetching the devices and their latest readings |
+| `src/state.rs` | The saved dashboard state and device order |
 
 ## License
 

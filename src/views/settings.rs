@@ -1,10 +1,10 @@
 //! Units, theme, advanced sign-in options and account.
 
-use airdash_core::api::Unit;
-use airdash_core::settings::Settings;
 use egui::{RichText, Ui};
 
+use crate::api::Unit;
 use crate::backend::{AuthInfo, Backend, SignInMethod, Task};
+use crate::settings::Settings;
 use crate::widgets;
 
 pub enum Action {

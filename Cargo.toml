@@ -4,22 +4,27 @@ version = "0.1.0"
 description = "Desktop dashboard for Airthings air quality monitors"
 authors = ["Christian Helle"]
 edition = "2024"
-
-[workspace]
-members = ["core"]
+license = "MIT"
+repository = "https://github.com/christianhelle/airdash"
 
 [dependencies]
-airdash-core = { path = "core" }
-chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+base64 = "0.23.1"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
 dirs = "7.0.0"
 # glow (OpenGL) instead of the default wgpu: wgpu probes every graphics API at startup, which made launching
 # about 400 ms slower. Without wgpu, eframe renders with glow.
 eframe = { version = "0.36.2", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "wayland", "x11"] }
 egui = "0.36.2"
 egui-winit = { version = "0.36.2", default-features = false, features = ["serde"] }
+keyring = "4.2.0"
 open = "5.4.4"
+rand = "0.10.3"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "query", "http2", "system-proxy"] }
-tokio = { version = "1.53.3", features = ["rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.11.1"
+thiserror = "2.0.21"
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "time", "sync", "net", "io-util"] }
 
 # Keeps winit's default Linux features (Wayland window decorations, loading libwayland at runtime) that eframe
 # only turns on with its default features.
@@ -35,3 +40,6 @@ strip = true
 
 [build-dependencies]
 winresource = "0.1.34"
+
+[dev-dependencies]
+wiremock = "0.6.5"

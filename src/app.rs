@@ -1,13 +1,13 @@
 //! The egui application: picks the view and keeps the dashboard data fresh.
 
-use airdash_core::api::Device;
-use airdash_core::error::{Error, Result};
-use airdash_core::refresh::Snapshot;
-use airdash_core::settings::Settings;
-use airdash_core::state::AppState;
 use egui_winit::WindowSettings;
 
+use crate::api::Device;
 use crate::backend::{AuthInfo, Backend, Task};
+use crate::error::{Error, Result};
+use crate::refresh::Snapshot;
+use crate::settings::Settings;
+use crate::state::AppState;
 use crate::theme;
 use crate::views::settings::{self, SettingsView};
 use crate::views::{dashboard, login::LoginView, status_bar};

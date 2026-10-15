@@ -6,16 +6,16 @@ use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use airdash_core::api::{self, ApiClient};
-use airdash_core::auth::{self, AuthClient, Credentials};
-use airdash_core::error::{Error, Result};
-use airdash_core::refresh::{self, Snapshot};
-use airdash_core::secrets::KeychainStore;
-use airdash_core::session::Session;
-use airdash_core::settings::Settings;
-use airdash_core::state::AppState;
 use tokio::runtime::Runtime;
 
+use crate::api::{self, ApiClient};
+use crate::auth::{self, AuthClient, Credentials};
+use crate::error::{Error, Result};
+use crate::refresh::{self, Snapshot};
+use crate::secrets::KeychainStore;
+use crate::session::Session;
+use crate::settings::Settings;
+use crate::state::AppState;
 /// The folders the earlier Tauri version used, so existing settings, history and sign-in carry over.
 pub const APP_IDENTIFIER: &str = "com.christianhelle.airdash";
 

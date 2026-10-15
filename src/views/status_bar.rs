@@ -1,8 +1,8 @@
 //! Bottom bar: when the last update happened, the next one, API budget, and refresh.
 
-use airdash_core::api::RateLimit;
 use egui::{RichText, Ui};
 
+use crate::api::RateLimit;
 use crate::format::{time_ago, time_until};
 
 /// How often the dashboard refreshes on its own.

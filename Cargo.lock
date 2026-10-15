@@ -178,6 +178,7 @@ name = "airdash"
 version = "0.1.0"
 dependencies = [
  "airdash-core",
+ "airthings",
  "chrono",
  "dirs",
  "eframe",
@@ -194,9 +195,21 @@ dependencies = [
 name = "airdash-core"
 version = "0.1.0"
 dependencies = [
- "base64 0.23.1",
+ "airthings",
  "chrono",
  "keyring",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "wiremock",
+]
+
+[[package]]
+name = "airthings"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
  "rand",
  "reqwest",
  "serde",

@@ -1,6 +1,6 @@
 //! Small reusable pieces: cards, level badges and sensor tiles.
 
-use airdash_core::api::{SensorValue, Unit};
+use airthings::api::{SensorValue, Unit};
 use egui::{Color32, CornerRadius, Frame, Margin, RichText, Sense, Stroke, Ui, vec2};
 
 use crate::sensors::{self, Level};

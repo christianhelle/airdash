@@ -1,10 +1,10 @@
 //! The egui application: picks the view and keeps the dashboard data fresh.
 
-use airdash_core::api::Device;
-use airdash_core::error::{Error, Result};
 use airdash_core::refresh::Snapshot;
 use airdash_core::settings::Settings;
 use airdash_core::state::AppState;
+use airthings::api::Device;
+use airthings::error::{Error, Result};
 use egui_winit::WindowSettings;
 
 use crate::backend::{AuthInfo, Backend, Task};

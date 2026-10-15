@@ -2,9 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::api::{Device, DeviceSensors, RateLimit, Unit};
-use crate::error::Result;
-use crate::session::Session;
+use airthings::api::{Device, DeviceSensors, RateLimit, Unit};
+use airthings::error::Result;
+use airthings::session::Session;
 
 /// What the account looked like at one refresh.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -28,9 +28,9 @@ pub async fn fetch(session: &Session) -> Result<Snapshot> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::ApiClient;
-    use crate::auth::{AuthClient, Credentials};
-    use crate::store::{MemoryStore, SecretStore};
+    use airthings::api::ApiClient;
+    use airthings::auth::{AuthClient, Credentials};
+    use airthings::store::{MemoryStore, SecretStore};
     use serde_json::json;
     use std::sync::Arc;
     use wiremock::matchers::{method, path};

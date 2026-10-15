@@ -6,10 +6,11 @@ authors = ["Christian Helle"]
 edition = "2024"
 
 [workspace]
-members = ["core"]
+members = ["airthings", "core"]
 
 [dependencies]
-airdash-core = { path = "core" }
+airdash-core = { path = "core", version = "0.1.0" }
+airthings = { path = "airthings", version = "0.1.0" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 dirs = "7.0.0"
 # glow (OpenGL) instead of the default wgpu: wgpu probes every graphics API at startup, which made launching

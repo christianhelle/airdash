@@ -4,9 +4,9 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::api::Unit;
-use crate::auth::{DEFAULT_REDIRECT_PORT, DEFAULT_SCOPE};
-use crate::error::{Error, Result};
+use airthings::api::Unit;
+use airthings::auth::{DEFAULT_REDIRECT_PORT, DEFAULT_SCOPE};
+use airthings::error::{Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]

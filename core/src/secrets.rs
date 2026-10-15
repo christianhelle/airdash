@@ -2,9 +2,9 @@
 
 use std::path::PathBuf;
 
-use crate::auth::Credentials;
-use crate::error::{Error, Result};
-use crate::store::SecretStore;
+use airthings::auth::Credentials;
+use airthings::error::{Error, Result};
+use airthings::store::SecretStore;
 
 const SERVICE: &str = "AirDash";
 const ACCOUNT: &str = "airthings-credentials";

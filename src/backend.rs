@@ -10,10 +10,10 @@ use airdash_core::refresh::{self, Snapshot};
 use airdash_core::secrets::KeychainStore;
 use airdash_core::settings::Settings;
 use airdash_core::state::AppState;
-use airthings::api::{self, ApiClient};
-use airthings::auth::{self, AuthClient, Credentials};
-use airthings::error::{Error, Result};
-use airthings::session::Session;
+use airthings_client::api::{self, ApiClient};
+use airthings_client::auth::{self, AuthClient, Credentials};
+use airthings_client::error::{Error, Result};
+use airthings_client::session::Session;
 use tokio::runtime::Runtime;
 
 /// The folders the earlier Tauri version used, so existing settings, history and sign-in carry over.

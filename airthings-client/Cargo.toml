@@ -1,5 +1,5 @@
 [package]
-name = "airthings"
+name = "airthings-client"
 version = "0.1.0"
 description = "Client for the Airthings Consumer API, with OAuth sign-in and token refresh"
 authors = ["Christian Helle"]

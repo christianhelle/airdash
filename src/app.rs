@@ -3,8 +3,8 @@
 use airdash_core::refresh::Snapshot;
 use airdash_core::settings::Settings;
 use airdash_core::state::AppState;
-use airthings::api::Device;
-use airthings::error::{Error, Result};
+use airthings_client::api::Device;
+use airthings_client::error::{Error, Result};
 use egui_winit::WindowSettings;
 
 use crate::backend::{AuthInfo, Backend, Task};

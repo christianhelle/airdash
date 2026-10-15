@@ -1,6 +1,6 @@
 //! Sensor metadata: labels, display units, unit conversion and Airthings air-quality thresholds.
 
-use airthings::api::Unit;
+use airthings_client::api::Unit;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {

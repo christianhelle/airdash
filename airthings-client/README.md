@@ -1,4 +1,4 @@
-# airthings
+# airthings-client
 
 A Rust client for the [Airthings Consumer API](https://consumer-api-doc.airthings.com/): sign in, keep a valid
 access token and read your devices and their latest sensor values.
@@ -16,13 +16,13 @@ a client ID and secret.
 ```rust,no_run
 use std::sync::Arc;
 
-use airthings::api::{ApiClient, Unit, DEFAULT_BASE_URL};
-use airthings::auth::{AuthClient, Credentials, DEFAULT_SCOPE, DEFAULT_TOKEN_URL};
-use airthings::session::Session;
-use airthings::store::MemoryStore;
+use airthings_client::api::{ApiClient, Unit, DEFAULT_BASE_URL};
+use airthings_client::auth::{AuthClient, Credentials, DEFAULT_SCOPE, DEFAULT_TOKEN_URL};
+use airthings_client::session::Session;
+use airthings_client::store::MemoryStore;
 
 #[tokio::main]
-async fn main() -> airthings::error::Result<()> {
+async fn main() -> airthings_client::error::Result<()> {
     let http = reqwest::Client::new();
     let session = Session::new(
         AuthClient::new(http.clone(), DEFAULT_TOKEN_URL),

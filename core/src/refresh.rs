@@ -2,9 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use airthings::api::{Device, DeviceSensors, RateLimit, Unit};
-use airthings::error::Result;
-use airthings::session::Session;
+use airthings_client::api::{Device, DeviceSensors, RateLimit, Unit};
+use airthings_client::error::Result;
+use airthings_client::session::Session;
 
 /// What the account looked like at one refresh.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -28,9 +28,9 @@ pub async fn fetch(session: &Session) -> Result<Snapshot> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use airthings::api::ApiClient;
-    use airthings::auth::{AuthClient, Credentials};
-    use airthings::store::{MemoryStore, SecretStore};
+    use airthings_client::api::ApiClient;
+    use airthings_client::auth::{AuthClient, Credentials};
+    use airthings_client::store::{MemoryStore, SecretStore};
     use serde_json::json;
     use std::sync::Arc;
     use wiremock::matchers::{method, path};

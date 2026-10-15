@@ -10,11 +10,11 @@ keywords = ["airthings", "air-quality", "radon", "dashboard", "egui"]
 categories = ["gui"]
 
 [workspace]
-members = ["airthings", "core"]
+members = ["airthings-client", "core"]
 
 [dependencies]
 airdash-core = { path = "core", version = "0.1.0" }
-airthings = { path = "airthings", version = "0.1.0" }
+airthings-client = { path = "airthings-client", version = "0.1.0" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 dirs = "7.0.0"
 # glow (OpenGL) instead of the default wgpu: wgpu probes every graphics API at startup, which made launching

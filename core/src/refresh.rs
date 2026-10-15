@@ -30,7 +30,7 @@ mod tests {
     use super::*;
     use crate::api::ApiClient;
     use crate::auth::{AuthClient, Credentials};
-    use crate::secrets::{MemoryStore, SecretStore};
+    use crate::store::{MemoryStore, SecretStore};
     use serde_json::json;
     use std::sync::Arc;
     use wiremock::matchers::{method, path};

@@ -1,8 +1,8 @@
 //! Sign-in screen: Airthings browser sign-in, or the user's own API client.
 
-use airdash_core::auth::redirect_uri;
-use airdash_core::error::Result;
 use airdash_core::settings::Settings;
+use airthings_client::auth::redirect_uri;
+use airthings_client::error::Result;
 
 use crate::backend::{AuthInfo, Backend, Task};
 

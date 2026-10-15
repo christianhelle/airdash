@@ -1,19 +1,13 @@
-//! Where sign-in credentials live between runs.
+//! AirDash keeps sign-in credentials in the OS keychain.
 
 use std::path::PathBuf;
-use std::sync::Mutex;
 
-use crate::auth::Credentials;
-use crate::error::{Error, Result};
+use airthings_client::auth::Credentials;
+use airthings_client::error::{Error, Result};
+use airthings_client::store::SecretStore;
 
 const SERVICE: &str = "AirDash";
 const ACCOUNT: &str = "airthings-credentials";
-
-pub trait SecretStore: Send + Sync {
-    fn load(&self) -> Option<Credentials>;
-    fn save(&self, credentials: &Credentials) -> Result<()>;
-    fn clear(&self);
-}
 
 /// The OS keychain (Windows Credential Manager, macOS Keychain, Secret Service on Linux).
 /// Falls back to a file in the app data folder when no keychain is available or the
@@ -68,24 +62,5 @@ impl SecretStore for KeychainStore {
             let _ = entry.delete_credential();
         }
         let _ = std::fs::remove_file(&self.fallback_path);
-    }
-}
-
-/// Keeps credentials for the lifetime of the process only. Used by tests.
-#[derive(Default)]
-pub struct MemoryStore(Mutex<Option<Credentials>>);
-
-impl SecretStore for MemoryStore {
-    fn load(&self) -> Option<Credentials> {
-        self.0.lock().unwrap().clone()
-    }
-
-    fn save(&self, credentials: &Credentials) -> Result<()> {
-        *self.0.lock().unwrap() = Some(credentials.clone());
-        Ok(())
-    }
-
-    fn clear(&self) {
-        *self.0.lock().unwrap() = None;
     }
 }

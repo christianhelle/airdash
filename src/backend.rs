@@ -6,14 +6,14 @@ use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use airdash_core::api::{self, ApiClient};
-use airdash_core::auth::{self, AuthClient, Credentials};
-use airdash_core::error::{Error, Result};
 use airdash_core::refresh::{self, Snapshot};
 use airdash_core::secrets::KeychainStore;
-use airdash_core::session::Session;
 use airdash_core::settings::Settings;
 use airdash_core::state::AppState;
+use airthings_client::api::{self, ApiClient};
+use airthings_client::auth::{self, AuthClient, Credentials};
+use airthings_client::error::{Error, Result};
+use airthings_client::session::Session;
 use tokio::runtime::Runtime;
 
 /// The folders the earlier Tauri version used, so existing settings, history and sign-in carry over.

@@ -4,8 +4,8 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::api::Device;
-use crate::error::{Error, Result};
+use airthings_client::api::Device;
+use airthings_client::error::{Error, Result};
 use crate::refresh::Snapshot;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

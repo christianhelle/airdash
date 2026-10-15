@@ -178,6 +178,7 @@ name = "airdash"
 version = "0.1.0"
 dependencies = [
  "airdash-core",
+ "airthings-client",
  "chrono",
  "dirs",
  "eframe",
@@ -194,9 +195,20 @@ dependencies = [
 name = "airdash-core"
 version = "0.1.0"
 dependencies = [
- "base64 0.23.1",
- "chrono",
+ "airthings-client",
  "keyring",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "wiremock",
+]
+
+[[package]]
+name = "airthings-client"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
  "rand",
  "reqwest",
  "serde",
@@ -749,7 +761,6 @@ checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
 dependencies = [
  "iana-time-zone",
  "num-traits",
- "serde",
  "windows-link",
 ]
 

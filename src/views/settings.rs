@@ -1,7 +1,7 @@
 //! Units, theme, advanced sign-in options and account.
 
-use airdash_core::api::Unit;
 use airdash_core::settings::Settings;
+use airthings_client::api::Unit;
 use egui::{RichText, Ui};
 
 use crate::backend::{AuthInfo, Backend, SignInMethod, Task};

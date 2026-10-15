@@ -1,6 +1,6 @@
 //! Every device on the account, grouped by home, with its latest values.
 
-use airdash_core::api::{Device, DeviceSensors, Unit};
+use airthings_client::api::{Device, DeviceSensors, Unit};
 use egui::{RichText, Sense, Ui, UiBuilder};
 
 use crate::format::time_ago;

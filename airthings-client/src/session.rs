@@ -9,7 +9,7 @@ use tokio::net::TcpListener;
 use crate::api::ApiClient;
 use crate::auth::{self, AuthClient, Credentials, Pkce, TokenResponse, DEFAULT_AUTHORIZE_URL};
 use crate::error::{Error, Result};
-use crate::secrets::SecretStore;
+use crate::store::SecretStore;
 
 /// Renew tokens this long before they expire.
 const EXPIRY_MARGIN: Duration = Duration::from_secs(60);
@@ -209,7 +209,7 @@ fn rotate(credentials: Credentials, resp: &TokenResponse) -> Credentials {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::secrets::MemoryStore;
+    use crate::store::MemoryStore;
     use serde_json::json;
     use wiremock::matchers::{body_partial_json, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};

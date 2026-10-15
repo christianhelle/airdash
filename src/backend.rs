@@ -16,6 +16,7 @@ use crate::secrets::KeychainStore;
 use crate::session::Session;
 use crate::settings::Settings;
 use crate::state::AppState;
+
 /// The folders the earlier Tauri version used, so existing settings, history and sign-in carry over.
 pub const APP_IDENTIFIER: &str = "com.christianhelle.airdash";
 

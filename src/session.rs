@@ -60,10 +60,6 @@ impl Session {
         }
     }
 
-    pub fn auth(&self) -> &AuthClient {
-        &self.auth
-    }
-
     pub fn api(&self) -> &ApiClient {
         &self.api
     }

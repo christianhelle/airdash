@@ -177,26 +177,14 @@ dependencies = [
 name = "airdash"
 version = "0.1.0"
 dependencies = [
- "airdash-core",
+ "base64 0.23.1",
  "chrono",
  "dirs",
  "eframe",
  "egui",
  "egui-winit",
- "open",
- "reqwest",
- "tokio",
- "winit",
- "winresource",
-]
-
-[[package]]
-name = "airdash-core"
-version = "0.1.0"
-dependencies = [
- "base64 0.23.1",
- "chrono",
  "keyring",
+ "open",
  "rand",
  "reqwest",
  "serde",
@@ -204,6 +192,8 @@ dependencies = [
  "sha2",
  "thiserror 2.0.21",
  "tokio",
+ "winit",
+ "winresource",
  "wiremock",
 ]
 

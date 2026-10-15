@@ -1,6 +1,7 @@
 //! Where sign-in credentials live between runs.
 
 use std::path::PathBuf;
+#[cfg(test)]
 use std::sync::Mutex;
 
 use crate::auth::Credentials;
@@ -73,8 +74,10 @@ impl SecretStore for KeychainStore {
 
 /// Keeps credentials for the lifetime of the process only. Used by tests.
 #[derive(Default)]
+#[cfg(test)]
 pub struct MemoryStore(Mutex<Option<Credentials>>);
 
+#[cfg(test)]
 impl SecretStore for MemoryStore {
     fn load(&self) -> Option<Credentials> {
         self.0.lock().unwrap().clone()

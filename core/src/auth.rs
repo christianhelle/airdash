@@ -18,7 +18,7 @@ pub const DEFAULT_SCOPE: &str = "read:device:current_values";
 pub const DEFAULT_REDIRECT_PORT: u16 = 53682;
 pub const CALLBACK_PATH: &str = "/callback";
 
-/// What the app keeps (in the OS keychain) to get new access tokens without asking the user again.
+/// What to keep between runs to get new access tokens without asking the user again.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Credentials {
@@ -203,12 +203,12 @@ pub async fn wait_for_code(listener: TcpListener, expected_state: &str) -> Resul
         let outcome = parse_callback(first_line, expected_state);
         let (status, message) = match &outcome {
             Ok(Callback::Ignored) => ("404 Not Found", "Not found"),
-            Ok(Callback::Code(_)) => ("200 OK", "You are signed in to AirDash. You can close this tab."),
+            Ok(Callback::Code(_)) => ("200 OK", "You are signed in to Airthings. You can close this tab."),
             Ok(Callback::Denied(_)) => ("200 OK", "Sign-in was cancelled. You can close this tab."),
-            Err(_) => ("400 Bad Request", "Sign-in failed. Return to AirDash and try again."),
+            Err(_) => ("400 Bad Request", "Sign-in failed. Return to the app and try again."),
         };
         let body = format!(
-            "<!doctype html><meta charset=utf-8><title>AirDash</title>\
+            "<!doctype html><meta charset=utf-8><title>Airthings sign-in</title>\
              <body style=\"font-family:system-ui;text-align:center;padding:4rem\"><h2>{message}</h2></body>"
         );
         let response = format!(

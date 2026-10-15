@@ -1,4 +1,4 @@
-//! Client for the Airthings Consumer API: sign-in, access tokens and the device and sensor endpoints.
+#![doc = include_str!("../README.md")]
 
 pub mod api;
 pub mod auth;

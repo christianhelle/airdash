@@ -6,6 +6,7 @@ authors = ["Christian Helle"]
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/christianhelle/airdash"
+readme = "README.md"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

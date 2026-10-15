@@ -6,6 +6,8 @@ authors = ["Christian Helle"]
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/christianhelle/airdash"
+keywords = ["airthings", "air-quality", "radon", "dashboard", "egui"]
+categories = ["gui"]
 
 [workspace]
 members = ["airthings", "core"]

@@ -7,6 +7,8 @@ edition = "2024"
 license = "MIT"
 repository = "https://github.com/christianhelle/airdash"
 readme = "README.md"
+keywords = ["airthings", "air-quality", "radon", "iot", "api-client"]
+categories = ["api-bindings", "web-programming::http-client"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

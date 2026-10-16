@@ -28,7 +28,7 @@ fn main() -> eframe::Result {
         }
     });
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("AirDash")
+        .with_title("Airdash - Open Source Airthings Dashboard")
         // Also names the folder eframe saves the window size and position in: the app's own data folder.
         .with_app_id(backend::APP_IDENTIFIER)
         // The size on first launch; after that the last size is restored.

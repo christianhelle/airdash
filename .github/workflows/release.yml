@@ -49,9 +49,19 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path target/${{ matrix.target }}/release/airdash.exe -DestinationPath airdash-${{ matrix.target }}.zip
 
-      - name: Package (macOS and Linux)
-        if: runner.os != 'Windows'
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
         run: tar -czf airdash-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release airdash
+
+      # The desktop entry and icon let app launchers list AirDash (see "Installing on Linux" in the README).
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir dist
+          cp target/${{ matrix.target }}/release/airdash dist/
+          cp src/airdash/assets/com.christianhelle.airdash.desktop dist/
+          cp src/airdash/assets/icon.png dist/com.christianhelle.airdash.png
+          tar -czf airdash-${{ matrix.target }}.tar.gz -C dist .
 
       - uses: actions/upload-artifact@v4
         with:

@@ -154,7 +154,10 @@ cargo clippy --workspace --all-targets
 cargo build --release
 ```
 
-Release builds for Windows, macOS and Linux are attached to a draft GitHub release when a `v*` tag is pushed.
+To release, run the Release workflow from the Actions tab. It numbers the release 0.1.<run number>, sets that
+version in every crate with `scripts/set-version.sh`, and builds for Windows, macOS and Linux. Once every build
+passes it pushes a `v0.1.<run number>` tag and attaches the builds to a draft GitHub release. The tagged commit is
+not pushed to `main`, which keeps the placeholder version.
 
 ### Layout
 

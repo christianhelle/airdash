@@ -1,6 +1,6 @@
 """Draws the AirDash icon: a white ring and a white "A" peak on a navy disc.
 
-Usage: python assets/make_icon.py   (needs Pillow; writes icon.png and the Windows icon.ico next to this script)
+Usage: python src/airdash/assets/make_icon.py   (needs Pillow; writes icon.png and the Windows icon.ico next to this script)
 """
 import math
 from pathlib import Path

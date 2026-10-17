@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=AirDash
+GenericName=Air Quality Dashboard
+Comment=Open source dashboard for Airthings air quality monitors
+Exec=airdash
+Icon=com.christianhelle.airdash
+Terminal=false
+Categories=Utility;Monitor;
+Keywords=airthings;radon;co2;air;quality;
+StartupWMClass=com.christianhelle.airdash

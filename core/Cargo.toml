@@ -11,7 +11,7 @@ keywords = ["airthings", "air-quality", "radon", "dashboard", "keychain"]
 categories = ["config"]
 
 [dependencies]
-airthings-client = { path = "../airthings-client", version = "0.1.0" }
+airthings-client = { path = "../src/airthings-client", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 keyring = "4.2.0"

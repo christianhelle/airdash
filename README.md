@@ -53,8 +53,34 @@ The Linux builds need glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36, a
 
 ### Windows
 
-Download `airdash-x86_64-pc-windows-msvc.zip`, or `airdash-aarch64-pc-windows-msvc.zip` for ARM64, from
-[GitHub Releases](https://github.com/christianhelle/airdash/releases/latest), extract it and run `airdash.exe`.
+In PowerShell:
+
+```powershell
+irm https://christianhelle.com/airdash/install.ps1 | iex
+```
+
+The script downloads the latest release for your CPU (x64 or ARM64), installs it to
+`%LOCALAPPDATA%\Programs\AirDash` and adds AirDash to the Start Menu. Run the same command again to update,
+even while AirDash is open.
+
+To pass options, load the script first:
+
+```powershell
+$install = irm https://christianhelle.com/airdash/install.ps1
+
+# Install a specific release
+& ([scriptblock]::Create($install)) -Version v0.1.0
+
+# Also add airdash.exe to your PATH
+& ([scriptblock]::Create($install)) -AddToPath
+
+# Remove AirDash and its Start Menu shortcut (settings and saved readings are kept)
+& ([scriptblock]::Create($install)) -Uninstall
+```
+
+You can also download `airdash-x86_64-pc-windows-msvc.zip`, or `airdash-aarch64-pc-windows-msvc.zip` for ARM64,
+from [GitHub Releases](https://github.com/christianhelle/airdash/releases/latest), extract it and run
+`airdash.exe`.
 
 ### From crates.io
 

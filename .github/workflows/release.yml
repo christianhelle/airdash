@@ -1,12 +1,32 @@
 name: Release
 
+# Each run is a release: the version is 0.1.<run number>. The workflow sets it in the crates, builds, and
+# once every build passes, tags a commit with the new version and drafts the GitHub release.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  VERSION: 0.1.${{ github.run_number }}
+
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the tag is new
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists"
+            exit 1
+          fi
+
   build:
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -33,6 +53,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libdbus-1-dev libxkbcommon-dev
 
+      - name: Set the version
+        shell: bash
+        run: scripts/set-version.sh "$VERSION"
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -42,7 +66,7 @@ jobs:
           key: ${{ matrix.target }}
 
       # No credentials are compiled in: every user signs in with their own Airthings API client.
-      - run: cargo build --release --target ${{ matrix.target }}
+      - run: cargo build --locked --release --target ${{ matrix.target }}
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
@@ -70,11 +94,23 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
+      # The tagged commit holds the version the artifacts were built with. It is not pushed to the branch,
+      # which keeps its placeholder version.
+      - name: Tag the release
+        run: |
+          scripts/set-version.sh "$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release v$VERSION"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -82,6 +118,7 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: AirDash ${{ github.ref_name }}
+          tag_name: v${{ env.VERSION }}
+          name: AirDash v${{ env.VERSION }}
           draft: true
           files: dist/*

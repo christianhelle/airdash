@@ -26,7 +26,19 @@ at once and refreshes only when it is more than 5 minutes old.
 
 ## Installing
 
-### Linux (including Omarchy) and macOS
+### Arch Linux and Omarchy
+
+AirDash is in the AUR as [`airdash-bin`](https://aur.archlinux.org/packages/airdash-bin). On Omarchy:
+
+```bash
+omarchy pkg aur add airdash-bin
+```
+
+On other Arch-based systems, use your AUR helper, for example `yay -S airdash-bin`. AirDash then shows up in
+your app launcher (Super + Space on Omarchy) and is updated with the rest of the system, for example by
+`omarchy update`.
+
+### Linux and macOS
 
 ```bash
 curl -fsSL https://christianhelle.com/airdash/install | bash
@@ -49,7 +61,9 @@ curl -fsSL https://christianhelle.com/airdash/install | bash -s -- --dir /usr/lo
 curl -fsSL https://christianhelle.com/airdash/install | bash -s -- --uninstall
 ```
 
-The Linux builds need glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36, any current Arch or Omarchy).
+The Linux builds need glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36, any current Arch or Omarchy). The
+script also works on Omarchy if you prefer it to the AUR package, but do not use both: they install separate
+copies.
 
 ### Windows
 

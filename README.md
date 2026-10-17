@@ -1,5 +1,7 @@
 # AirDash
 
+![AirDash dashboard](images/airdash.png)
+
 A cross-platform desktop dashboard for Airthings air quality monitors. It replaces the retiring
 [Airthings Web Dashboard](https://dashboard.airthings.com/).
 

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["src/airdash", "src/airthings-client", "core"]
+members = ["src/airdash", "src/airthings-client", "src/airdash-core"]
 
 [profile.release]
 codegen-units = 1

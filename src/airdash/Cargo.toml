@@ -11,7 +11,7 @@ keywords = ["airthings", "air-quality", "radon", "dashboard", "egui"]
 categories = ["gui"]
 
 [dependencies]
-airdash-core = { path = "../../core", version = "0.1.0" }
+airdash-core = { path = "../airdash-core", version = "0.1.0" }
 airthings-client = { path = "../airthings-client", version = "0.1.0" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 dirs = "7.0.0"

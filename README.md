@@ -28,15 +28,22 @@ at once and refreshes only when it is more than 5 minutes old.
 
 ### Arch Linux and Omarchy
 
-AirDash is in the AUR as [`airdash-bin`](https://aur.archlinux.org/packages/airdash-bin). On Omarchy:
+AirDash is in the AUR. On Omarchy:
 
 ```bash
-omarchy pkg aur add airdash-bin
+omarchy pkg aur add airdash
 ```
 
-On other Arch-based systems, use your AUR helper, for example `yay -S airdash-bin`. AirDash then shows up in
-your app launcher (Super + Space on Omarchy) and is updated with the rest of the system, for example by
+On other Arch-based systems, use your AUR helper, for example `yay -S airdash`. AirDash then shows up in your
+app launcher (Super + Space on Omarchy) and is updated with the rest of the system, for example by
 `omarchy update`.
+
+There are two packages, and only one can be installed at a time:
+
+| Package | What it installs |
+| --- | --- |
+| [`airdash`](https://aur.archlinux.org/packages/airdash) | Builds AirDash from source with Rust. This takes several minutes on each install and update |
+| [`airdash-bin`](https://aur.archlinux.org/packages/airdash-bin) | The prebuilt binary from the GitHub release. It installs in seconds |
 
 ### Linux and macOS
 

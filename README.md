@@ -24,6 +24,62 @@ AirDash only shows the latest reading of each device and keeps no history. The d
 `state.json` in the app's data folder after every refresh and every rearrangement, so the next launch shows it
 at once and refreshes only when it is more than 5 minutes old.
 
+## Installing
+
+### Linux (including Omarchy) and macOS
+
+```bash
+curl -fsSL https://christianhelle.com/airdash/install | bash
+```
+
+The script downloads the latest release for your CPU (x64 or ARM64) and installs `airdash` to `~/.local/bin`.
+On Linux it also adds AirDash to your app launcher, so on Omarchy you can start it with Super + Space and
+typing "AirDash". Run the same command again to update.
+
+Options are passed after `bash -s --`:
+
+```bash
+# Install a specific release
+curl -fsSL https://christianhelle.com/airdash/install | bash -s -- --version v0.1.0
+
+# Install somewhere else than ~/.local/bin
+curl -fsSL https://christianhelle.com/airdash/install | bash -s -- --dir /usr/local/bin
+
+# Remove AirDash, its launcher entry and its icon (settings and saved readings are kept)
+curl -fsSL https://christianhelle.com/airdash/install | bash -s -- --uninstall
+```
+
+The Linux builds need glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36, any current Arch or Omarchy).
+
+### Windows
+
+Download `airdash-x86_64-pc-windows-msvc.zip`, or `airdash-aarch64-pc-windows-msvc.zip` for ARM64, from
+[GitHub Releases](https://github.com/christianhelle/airdash/releases/latest), extract it and run `airdash.exe`.
+
+### From crates.io
+
+With [Rust](https://rustup.rs) installed (see the Linux prerequisites under [Development](#development)):
+
+```bash
+cargo install airdash
+```
+
+This installs only the binary, to `~/.cargo/bin`. To add it to a Linux app launcher, copy
+`src/airdash/assets/com.christianhelle.airdash.desktop` to `~/.local/share/applications/` and
+`src/airdash/assets/icon.png` to `~/.local/share/icons/hicolor/256x256/apps/com.christianhelle.airdash.png`.
+
+### Manually from a release archive
+
+The Linux archives contain the `airdash` binary, a desktop entry and an icon. This is what the install script
+does:
+
+```bash
+tar -xzf airdash-x86_64-unknown-linux-gnu.tar.gz
+install -Dm755 airdash ~/.local/bin/airdash
+install -Dm644 com.christianhelle.airdash.desktop ~/.local/share/applications/com.christianhelle.airdash.desktop
+install -Dm644 com.christianhelle.airdash.png ~/.local/share/icons/hicolor/256x256/apps/com.christianhelle.airdash.png
+```
+
 ## Signing in
 
 AirDash has no Airthings credentials built in. Each user signs in with their own account's API client, so
@@ -39,21 +95,6 @@ If you have an Airthings OAuth client that uses the authorization code flow (onl
 create these), enter it under Settings → Advanced sign-in options and register the redirect URI shown there
 (`http://127.0.0.1:53682/callback` by default). After signing out, the sign-in screen then offers "Sign in with
 Airthings", which opens the Airthings login page in your browser.
-
-## Installing on Linux
-
-The Linux release archives contain the `airdash` binary, a desktop entry and an icon. To have AirDash show up
-in your app launcher, extract an archive and install the three files for your user:
-
-```bash
-tar -xzf airdash-x86_64-unknown-linux-gnu.tar.gz
-install -Dm755 airdash ~/.local/bin/airdash
-install -Dm644 com.christianhelle.airdash.desktop ~/.local/share/applications/com.christianhelle.airdash.desktop
-install -Dm644 com.christianhelle.airdash.png ~/.local/share/icons/hicolor/256x256/apps/com.christianhelle.airdash.png
-```
-
-`~/.local/bin` must be on your `PATH`. When building from source, `cargo install --path src/airdash` installs
-the binary to `~/.cargo/bin` instead, and the desktop entry and icon are in `src/airdash/assets/`.
 
 ## Development
 

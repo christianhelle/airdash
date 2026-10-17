@@ -1,4 +1,4 @@
-//! Everything AirDash does that is not UI and not the Airthings client: refreshing, credential storage and the saved app state.
+#![doc = include_str!("../README.md")]
 
 pub mod refresh;
 pub mod secrets;

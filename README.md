@@ -40,6 +40,21 @@ create these), enter it under Settings → Advanced sign-in options and register
 (`http://127.0.0.1:53682/callback` by default). After signing out, the sign-in screen then offers "Sign in with
 Airthings", which opens the Airthings login page in your browser.
 
+## Installing on Linux
+
+The Linux release archives contain the `airdash` binary, a desktop entry and an icon. To have AirDash show up
+in your app launcher, extract an archive and install the three files for your user:
+
+```bash
+tar -xzf airdash-x86_64-unknown-linux-gnu.tar.gz
+install -Dm755 airdash ~/.local/bin/airdash
+install -Dm644 com.christianhelle.airdash.desktop ~/.local/share/applications/com.christianhelle.airdash.desktop
+install -Dm644 com.christianhelle.airdash.png ~/.local/share/icons/hicolor/256x256/apps/com.christianhelle.airdash.png
+```
+
+`~/.local/bin` must be on your `PATH`. When building from source, `cargo install --path src/airdash` installs
+the binary to `~/.cargo/bin` instead, and the desktop entry and icon are in `src/airdash/assets/`.
+
 ## Development
 
 Prerequisites: [Rust](https://rustup.rs). On Linux, also `pkg-config`, `libdbus-1-dev` and `libxkbcommon-dev`.

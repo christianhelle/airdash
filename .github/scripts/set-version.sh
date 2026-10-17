@@ -11,7 +11,7 @@ fi
 
 # Perl rather than sed, because the macOS runners have BSD sed.
 export VERSION="$1"
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 for manifest in "$root"/src/{airdash,airdash-core,airthings-client}/Cargo.toml; do
   # The first version line is the one in [package].

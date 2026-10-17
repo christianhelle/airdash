@@ -55,7 +55,7 @@ jobs:
 
       - name: Set the version
         shell: bash
-        run: scripts/set-version.sh "$VERSION"
+        run: .github/scripts/set-version.sh "$VERSION"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -104,7 +104,7 @@ jobs:
       # which keeps its placeholder version.
       - name: Tag the release
         run: |
-          scripts/set-version.sh "$VERSION"
+          .github/scripts/set-version.sh "$VERSION"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "Release v$VERSION"

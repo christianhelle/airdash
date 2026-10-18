@@ -39,6 +39,13 @@ fn main() -> eframe::Result {
     }
     let options = eframe::NativeOptions {
         viewport,
+        glow_options: eframe::egui_glow::GlowConfiguration {
+            // With vsync on Wayland, drawing a frame while the window is hidden (e.g. on another workspace) blocks
+            // until the window is shown again, as the compositor sends no frame callbacks for hidden windows. The
+            // UI thread then can't answer the compositor's pings, and Hyprland reports AirDash as not responding.
+            vsync: !cfg!(target_os = "linux"),
+            ..Default::default()
+        },
         ..Default::default()
     };
     eframe::run_native(

@@ -158,7 +158,7 @@ async fn main() {
 4. It exchanges the code for tokens and saves `Credentials::RefreshToken`.
 
 The redirect URI registered on your API client must match `auth::redirect_uri(redirect_port)`, for example
-`http://127.0.0.1:53682/callback` with the default port. Pass `None` as the secret for a public client.
+`http://127.0.0.1:43682/callback` with the default port. Pass `None` as the secret for a public client.
 
 ```rust,no_run
 use std::sync::Arc;
@@ -502,7 +502,7 @@ async fn reads_the_account() {
 | `auth::DEFAULT_TOKEN_URL`      | `https://accounts-api.airthings.com/v1/token` |
 | `auth::DEFAULT_AUTHORIZE_URL`  | `https://accounts.airthings.com/authorize`    |
 | `auth::DEFAULT_SCOPE`          | `read:device:current_values`                  |
-| `auth::DEFAULT_REDIRECT_PORT`  | `53682`                                       |
+| `auth::DEFAULT_REDIRECT_PORT`  | `43682`                                       |
 | `auth::CALLBACK_PATH`          | `/callback`                                   |
 
 Access tokens are renewed 60 seconds before they expire. A token without an `expires_in` is assumed to last an

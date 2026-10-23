@@ -153,7 +153,7 @@ yourself; the `airthings-client` README shows how.
 | `theme`                | `"system"`                    | `"system"`, `"light"` or `"dark"`                                 |
 | `oauth_client_id`      | `None`                        | The user's own Airthings OAuth client, for browser sign-in       |
 | `oauth_client_secret`  | `None`                        | Its secret, if it is a confidential client                       |
-| `redirect_port`        | `53682`                       | Loopback port for the OAuth redirect                             |
+| `redirect_port`        | `43682`                       | Loopback port for the OAuth redirect                             |
 | `scope`                | `read:device:current_values`  | Scope requested with client credentials                          |
 
 ```rust,no_run

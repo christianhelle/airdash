@@ -140,7 +140,7 @@ everyone sees only their own devices:
 
 If you have an Airthings OAuth client that uses the authorization code flow (only *business* accounts can
 create these), enter it under Settings → Advanced sign-in options and register the redirect URI shown there
-(`http://127.0.0.1:53682/callback` by default). After signing out, the sign-in screen then offers "Sign in with
+(`http://127.0.0.1:43682/callback` by default). After signing out, the sign-in screen then offers "Sign in with
 Airthings", which opens the Airthings login page in your browser.
 
 ## Development

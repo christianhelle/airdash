@@ -15,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - Hyprland no longer reports AirDash as not responding after it has sat on another workspace for a while.
+- AirDash no longer takes 2 seconds longer to start on Windows when Hyper-V, WSL or Docker has reserved its port.
+
+### Changed
+
+- The default OAuth redirect URI is now `http://127.0.0.1:43682/callback`, as Windows often reserves the old port 53682. A redirect port already saved in the settings is kept.
 
 ## [0.1.0] - 2026-10-17
 

@@ -1,11 +1,12 @@
 //! Only one AirDash runs at a time: a second launch asks the first to show its window and exits.
 
-use std::io::{Read, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
 use std::time::Duration;
 
-/// Next to the OAuth redirect port (53682).
-const PORT: u16 = 53681;
+/// Next to the OAuth redirect port (43682). Below Windows' dynamic port range (49152 and up), where Hyper-V, WSL
+/// and Docker reserve blocks of ports that can then not be bound.
+const PORT: u16 = 43681;
 const HELLO: &[u8] = b"airdash:show\n";
 /// The running instance's answer, so a launch never mistakes another program on the port for AirDash.
 const ACK: &[u8] = b"airdash:ok\n";
@@ -25,8 +26,11 @@ pub fn acquire() -> Instance {
 fn acquire_on(port: u16) -> Instance {
     match TcpListener::bind((Ipv4Addr::LOCALHOST, port)) {
         Ok(listener) => Instance::Primary(listener),
-        Err(_) if ask_running_instance(port) => Instance::Secondary,
-        // Something other than AirDash holds the port: start normally, just without the single-instance check.
+        // Only a port in use can have an AirDash behind it. Any other error, e.g. Windows reserving the port for
+        // Hyper-V, means nobody listens, and connecting to it on Windows takes the whole timeout to be refused.
+        Err(e) if e.kind() == ErrorKind::AddrInUse && ask_running_instance(port) => Instance::Secondary,
+        // Something other than AirDash holds the port, or it can't be used: start normally, just without the
+        // single-instance check.
         Err(_) => Instance::Primary(TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind a loopback port")),
     }
 }

@@ -15,7 +15,8 @@ use crate::error::{Error, Result};
 pub const DEFAULT_TOKEN_URL: &str = "https://accounts-api.airthings.com/v1/token";
 pub const DEFAULT_AUTHORIZE_URL: &str = "https://accounts.airthings.com/authorize";
 pub const DEFAULT_SCOPE: &str = "read:device:current_values";
-pub const DEFAULT_REDIRECT_PORT: u16 = 53682;
+/// Below Windows' dynamic port range (49152 and up), where Hyper-V, WSL and Docker reserve blocks of ports.
+pub const DEFAULT_REDIRECT_PORT: u16 = 43682;
 pub const CALLBACK_PATH: &str = "/callback";
 
 /// What to keep between runs to get new access tokens without asking the user again.
@@ -256,14 +257,14 @@ mod tests {
         Mock::given(method("POST"))
             .and(body_json(json!({
                 "grant_type": "authorization_code", "client_id": "id", "code": "c",
-                "redirect_uri": "http://127.0.0.1:53682/callback", "code_verifier": "v"
+                "redirect_uri": "http://127.0.0.1:43682/callback", "code_verifier": "v"
             })))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"access_token": "a", "refresh_token": "r", "expires_in": 3600})))
             .mount(&server)
             .await;
 
         let auth = AuthClient::new(reqwest::Client::new(), server.uri());
-        let token = auth.exchange_code("id", None, "c", &redirect_uri(53682), "v").await.unwrap();
+        let token = auth.exchange_code("id", None, "c", &redirect_uri(43682), "v").await.unwrap();
         assert_eq!(token.refresh_token.as_deref(), Some("r"));
     }
 
@@ -308,11 +309,11 @@ mod tests {
 
     #[test]
     fn authorize_url_carries_all_parameters() {
-        let url = authorize_url(DEFAULT_AUTHORIZE_URL, "my client", &redirect_uri(53682), "st", "ch").unwrap();
+        let url = authorize_url(DEFAULT_AUTHORIZE_URL, "my client", &redirect_uri(43682), "st", "ch").unwrap();
         assert_eq!(
             url,
             "https://accounts.airthings.com/authorize?response_type=code&client_id=my+client\
-             &redirect_uri=http%3A%2F%2F127.0.0.1%3A53682%2Fcallback&state=st&code_challenge=ch&code_challenge_method=S256"
+             &redirect_uri=http%3A%2F%2F127.0.0.1%3A43682%2Fcallback&state=st&code_challenge=ch&code_challenge_method=S256"
         );
     }
 

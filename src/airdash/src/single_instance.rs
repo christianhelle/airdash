@@ -4,8 +4,9 @@ use std::io::{ErrorKind, Read, Write};
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
 use std::time::Duration;
 
-/// Next to the OAuth redirect port (53682).
-const PORT: u16 = 53681;
+/// Next to the OAuth redirect port (43682). Below Windows' dynamic port range (49152 and up), where Hyper-V, WSL
+/// and Docker reserve blocks of ports that can then not be bound.
+const PORT: u16 = 43681;
 const HELLO: &[u8] = b"airdash:show\n";
 /// The running instance's answer, so a launch never mistakes another program on the port for AirDash.
 const ACK: &[u8] = b"airdash:ok\n";

@@ -159,23 +159,6 @@ version in every crate with `.github/scripts/set-version.sh`, and builds for Win
 every build passes it pushes a `v0.1.<run number>` tag and attaches the builds to a draft GitHub release. The
 tagged commit is not pushed to `main`, which keeps the placeholder version.
 
-### Layout
-
-| Path | What |
-| --- | --- |
-| `src/airdash/src/backend.rs` | Starts the core services and hands background results to the UI |
-| `src/airdash/src/views/` | Sign-in, dashboard, settings and status bar |
-| `src/airdash/src/widgets.rs` | Cards, level badges and sensor tiles |
-| `src/airdash/src/sensors.rs` | Sensor labels, units, conversions and air-quality levels |
-| `src/airdash/src/single_instance.rs` | The single running instance |
-| `src/airthings-client/src/api.rs` | Typed Consumer API client |
-| `src/airthings-client/src/auth.rs` | OAuth (PKCE and loopback redirect) and client-credentials token requests |
-| `src/airthings-client/src/session.rs` | Access-token caching, refresh, the retry on 401 and the browser sign-in flow |
-| `src/airthings-client/src/store.rs` | Where a session keeps its credentials, with an in-memory store |
-| `src/airdash-core/src/secrets.rs` | Keychain credential storage |
-| `src/airdash-core/src/refresh.rs` | Fetching the devices and their latest readings |
-| `src/airdash-core/src/state.rs` | The saved dashboard state and device order |
-
 ## License
 
 MIT

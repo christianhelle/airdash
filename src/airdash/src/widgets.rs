@@ -34,16 +34,26 @@ pub fn columns(available: f32, min_width: f32, gap: f32) -> (usize, f32) {
 }
 
 /// Lay `items` out in rows of equal-width cells.
-pub fn grid<T>(ui: &mut Ui, items: &[T], min_width: f32, gap: f32, mut cell: impl FnMut(&mut Ui, &T)) {
+pub fn grid<T>(
+    ui: &mut Ui,
+    items: &[T],
+    min_width: f32,
+    gap: f32,
+    mut cell: impl FnMut(&mut Ui, &T),
+) {
     let (count, width) = columns(ui.available_width(), min_width, gap);
     ui.spacing_mut().item_spacing = vec2(gap, gap);
     for row in items.chunks(count) {
         ui.horizontal_top(|ui| {
             for item in row {
-                ui.allocate_ui_with_layout(vec2(width, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
-                    ui.set_width(width);
-                    cell(ui, item);
-                });
+                ui.allocate_ui_with_layout(
+                    vec2(width, 0.0),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        ui.set_width(width);
+                        cell(ui, item);
+                    },
+                );
             }
         });
     }
@@ -82,19 +92,49 @@ pub fn level_badge(ui: &mut Ui, level: Level) {
 /// One sensor's latest value, with a colored edge for its level.
 pub fn sensor_tile(ui: &mut Ui, sensor: &SensorValue, unit: Unit) {
     let level = sensors::level_of(&sensor.sensor_type, sensor.value);
-    let edge = level.map(level_color).unwrap_or(ui.visuals().widgets.noninteractive.bg_stroke.color);
+    let edge = level
+        .map(level_color)
+        .unwrap_or(ui.visuals().widgets.noninteractive.bg_stroke.color);
     let response = Frame::new()
         .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
         .corner_radius(CornerRadius::same(8))
-        .inner_margin(Margin { left: 12, right: 8, top: 6, bottom: 6 })
+        .inner_margin(Margin {
+            left: 12,
+            right: 8,
+            top: 6,
+            bottom: 6,
+        })
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.spacing_mut().item_spacing.y = 1.0;
-            ui.add(egui::Label::new(RichText::new(sensors::sensor_label(&sensor.sensor_type)).size(12.0).weak()).truncate());
+            ui.add(
+                egui::Label::new(
+                    RichText::new(sensors::sensor_label(&sensor.sensor_type))
+                        .size(12.0)
+                        .weak(),
+                )
+                .truncate(),
+            );
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
-                ui.label(RichText::new(sensors::format_value(&sensor.sensor_type, sensor.value, unit)).size(20.0).strong());
-                ui.label(RichText::new(sensors::display_unit(&sensor.sensor_type, unit, &sensor.unit)).size(12.0).weak());
+                ui.label(
+                    RichText::new(sensors::format_value(
+                        &sensor.sensor_type,
+                        sensor.value,
+                        unit,
+                    ))
+                    .size(20.0)
+                    .strong(),
+                );
+                ui.label(
+                    RichText::new(sensors::display_unit(
+                        &sensor.sensor_type,
+                        unit,
+                        &sensor.unit,
+                    ))
+                    .size(12.0)
+                    .weak(),
+                );
             });
             if let Some(level) = level {
                 level_badge(ui, level);
@@ -102,8 +142,20 @@ pub fn sensor_tile(ui: &mut Ui, sensor: &SensorValue, unit: Unit) {
         })
         .response;
     let rect = response.rect;
-    let edge_rect = egui::Rect::from_min_max(rect.left_top(), egui::pos2(rect.left() + 4.0, rect.bottom()));
-    ui.painter().rect_filled(edge_rect, CornerRadius { nw: 8, sw: 8, ne: 0, se: 0 }, edge);
+    let edge_rect = egui::Rect::from_min_max(
+        rect.left_top(),
+        egui::pos2(rect.left() + 4.0, rect.bottom()),
+    );
+    ui.painter().rect_filled(
+        edge_rect,
+        CornerRadius {
+            nw: 8,
+            sw: 8,
+            ne: 0,
+            se: 0,
+        },
+        edge,
+    );
 }
 
 #[cfg(test)]

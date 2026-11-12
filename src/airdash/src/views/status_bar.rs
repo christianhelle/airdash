@@ -51,14 +51,31 @@ pub fn ui(ui: &mut Ui, status: &Status) -> bool {
     ui.horizontal(|ui| {
         ui.label(RichText::new(state_text(status, now)).size(13.0));
         if let Some(error) = &status.last_error {
-            ui.add(egui::Label::new(RichText::new(error).size(13.0).color(ui.visuals().error_fg_color)).truncate())
-                .on_hover_text(error);
+            ui.add(
+                egui::Label::new(
+                    RichText::new(error)
+                        .size(13.0)
+                        .color(ui.visuals().error_fg_color),
+                )
+                .truncate(),
+            )
+            .on_hover_text(error);
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            refresh = ui.add_enabled(!status.refreshing, egui::Link::new("Refresh")).clicked();
-            if let Some((remaining, limit)) = status.rate_limit.as_ref().and_then(|r| Some((r.remaining?, r.limit?))) {
-                ui.label(RichText::new(format!("API {remaining}/{limit}")).size(13.0).weak())
-                    .on_hover_text("Airthings API requests left this hour");
+            refresh = ui
+                .add_enabled(!status.refreshing, egui::Link::new("Refresh"))
+                .clicked();
+            if let Some((remaining, limit)) = status
+                .rate_limit
+                .as_ref()
+                .and_then(|r| Some((r.remaining?, r.limit?)))
+            {
+                ui.label(
+                    RichText::new(format!("API {remaining}/{limit}"))
+                        .size(13.0)
+                        .weak(),
+                )
+                .on_hover_text("Airthings API requests left this hour");
             }
         });
     });
@@ -73,9 +90,16 @@ mod tests {
 
     #[test]
     fn describes_the_refresh_state() {
-        let idle = Status { last_refresh: Some(NOW - 120), last_attempt: Some(NOW - 120), ..Default::default() };
+        let idle = Status {
+            last_refresh: Some(NOW - 120),
+            last_attempt: Some(NOW - 120),
+            ..Default::default()
+        };
         assert_eq!(state_text(&idle, NOW), "Updated 2 min ago · next in 3 min");
-        let refreshing = Status { refreshing: true, ..Default::default() };
+        let refreshing = Status {
+            refreshing: true,
+            ..Default::default()
+        };
         assert_eq!(state_text(&refreshing, NOW), "Updating…");
         assert_eq!(state_text(&Status::default(), NOW), "Not updated yet");
     }
@@ -83,11 +107,20 @@ mod tests {
     #[test]
     fn refreshes_every_five_minutes() {
         assert!(Status::default().refresh_due(NOW));
-        let recent = Status { last_attempt: Some(NOW - 299), ..Default::default() };
+        let recent = Status {
+            last_attempt: Some(NOW - 299),
+            ..Default::default()
+        };
         assert!(!recent.refresh_due(NOW));
-        let old = Status { last_attempt: Some(NOW - 300), ..Default::default() };
+        let old = Status {
+            last_attempt: Some(NOW - 300),
+            ..Default::default()
+        };
         assert!(old.refresh_due(NOW));
-        let busy = Status { refreshing: true, ..old };
+        let busy = Status {
+            refreshing: true,
+            ..old
+        };
         assert!(!busy.refresh_due(NOW));
     }
 }

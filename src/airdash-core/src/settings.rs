@@ -75,7 +75,9 @@ impl Settings {
 
     /// The OAuth client to sign in through the browser with, if the user has set one up.
     pub fn oauth_client(&self) -> Option<(String, Option<String>)> {
-        self.oauth_client_id.clone().map(|id| (id, self.oauth_client_secret.clone()))
+        self.oauth_client_id
+            .clone()
+            .map(|id| (id, self.oauth_client_secret.clone()))
     }
 }
 
@@ -86,14 +88,21 @@ mod tests {
     #[test]
     fn missing_file_gives_defaults() {
         let dir = std::env::temp_dir().join(format!("airdash-settings-{}", std::process::id()));
-        assert_eq!(Settings::load(&dir.join("missing.json")), Settings::default());
+        assert_eq!(
+            Settings::load(&dir.join("missing.json")),
+            Settings::default()
+        );
     }
 
     #[test]
     fn round_trips_through_file() {
         let dir = std::env::temp_dir().join(format!("airdash-settings-rt-{}", std::process::id()));
         let path = dir.join("settings.json");
-        let settings = Settings { unit: Unit::Imperial, theme: "dark".into(), ..Default::default() };
+        let settings = Settings {
+            unit: Unit::Imperial,
+            theme: "dark".into(),
+            ..Default::default()
+        };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);
         std::fs::remove_dir_all(dir).unwrap();
@@ -123,7 +132,10 @@ mod tests {
     #[test]
     fn oauth_client_comes_only_from_settings() {
         assert_eq!(Settings::default().oauth_client(), None);
-        let settings = Settings { oauth_client_id: Some("mine".into()), ..Default::default() };
+        let settings = Settings {
+            oauth_client_id: Some("mine".into()),
+            ..Default::default()
+        };
         assert_eq!(settings.oauth_client(), Some(("mine".into(), None)));
     }
 }

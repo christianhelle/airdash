@@ -4,9 +4,9 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::refresh::Snapshot;
 use airthings_client::api::Device;
 use airthings_client::error::{Error, Result};
-use crate::refresh::Snapshot;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -22,15 +22,20 @@ pub struct AppState {
 impl AppState {
     /// Missing or unreadable files give an empty state.
     pub fn load(path: &Path) -> Self {
-        std::fs::read(path).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or_default()
+        std::fs::read(path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default()
     }
 
     /// Written to a temporary file first, so a crash mid-write never leaves a broken state behind.
     pub fn save(&self, path: &Path) -> Result<()> {
         let json = serde_json::to_vec(self).map_err(|e| Error::Other(e.to_string()))?;
         let temp = path.with_extension("json.tmp");
-        std::fs::write(&temp, json).map_err(|e| Error::Other(format!("could not save {}: {e}", temp.display())))?;
-        std::fs::rename(&temp, path).map_err(|e| Error::Other(format!("could not save {}: {e}", path.display())))
+        std::fs::write(&temp, json)
+            .map_err(|e| Error::Other(format!("could not save {}: {e}", temp.display())))?;
+        std::fs::rename(&temp, path)
+            .map_err(|e| Error::Other(format!("could not save {}: {e}", path.display())))
     }
 
     /// The devices in the user's order; ones they have not arranged follow by home and name.
@@ -52,36 +57,64 @@ mod tests {
     use super::*;
 
     fn device(serial: &str, home: Option<&str>, name: &str) -> Device {
-        Device { serial_number: serial.into(), home: home.map(Into::into), name: name.into(), device_type: "WAVE_PLUS".into(), sensors: vec![] }
+        Device {
+            serial_number: serial.into(),
+            home: home.map(Into::into),
+            name: name.into(),
+            device_type: "WAVE_PLUS".into(),
+            sensors: vec![],
+        }
     }
 
     fn state(devices: Vec<Device>, order: &[&str]) -> AppState {
         AppState {
-            snapshot: Snapshot { devices, ..Default::default() },
+            snapshot: Snapshot {
+                devices,
+                ..Default::default()
+            },
             device_order: order.iter().map(|s| s.to_string()).collect(),
             ..Default::default()
         }
     }
 
     fn serials(state: &AppState) -> Vec<String> {
-        state.devices().into_iter().map(|d| d.serial_number).collect()
+        state
+            .devices()
+            .into_iter()
+            .map(|d| d.serial_number)
+            .collect()
     }
 
     #[test]
     fn devices_follow_the_saved_order_and_new_ones_come_last() {
-        let state = state(vec![device("A", None, "Attic"), device("B", None, "Bedroom"), device("C", None, "Cellar")], &["C", "A"]);
+        let state = state(
+            vec![
+                device("A", None, "Attic"),
+                device("B", None, "Bedroom"),
+                device("C", None, "Cellar"),
+            ],
+            &["C", "A"],
+        );
         assert_eq!(serials(&state), ["C", "A", "B"]);
     }
 
     #[test]
     fn unarranged_devices_are_sorted_by_home_and_name() {
-        let state = state(vec![device("A", Some("Home"), "Office"), device("B", Some("Cabin"), "Loft"), device("C", Some("Home"), "Hall")], &[]);
+        let state = state(
+            vec![
+                device("A", Some("Home"), "Office"),
+                device("B", Some("Cabin"), "Loft"),
+                device("C", Some("Home"), "Hall"),
+            ],
+            &[],
+        );
         assert_eq!(serials(&state), ["B", "C", "A"]);
     }
 
     #[test]
     fn missing_file_gives_an_empty_state() {
-        let dir = std::env::temp_dir().join(format!("airdash-state-missing-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("airdash-state-missing-{}", std::process::id()));
         assert_eq!(AppState::load(&dir.join("state.json")), AppState::default());
     }
 
@@ -90,7 +123,10 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("airdash-state-rt-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("state.json");
-        let saved = AppState { last_refresh: Some(1_791_979_200), ..state(vec![device("A", None, "Attic")], &["A"]) };
+        let saved = AppState {
+            last_refresh: Some(1_791_979_200),
+            ..state(vec![device("A", None, "Attic")], &["A"])
+        };
         saved.save(&path).unwrap();
         assert_eq!(AppState::load(&path), saved);
         std::fs::remove_dir_all(dir).unwrap();

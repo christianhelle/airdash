@@ -1,7 +1,7 @@
 //! Typed client for the Airthings Consumer API.
 //! Spec: https://consumer-api.airthings.com/openapi.yaml
 
-use reqwest::{header::HeaderMap, Response, StatusCode};
+use reqwest::{Response, StatusCode, header::HeaderMap};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::error::{Error, Result};
@@ -79,7 +79,12 @@ pub struct RateLimit {
 
 impl RateLimit {
     fn from_headers(headers: &HeaderMap) -> Self {
-        let text = |name: &str| headers.get(name).and_then(|v| v.to_str().ok()).map(str::to_owned);
+        let text = |name: &str| {
+            headers
+                .get(name)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned)
+        };
         RateLimit {
             limit: text("x-ratelimit-limit").and_then(|v| v.parse().ok()),
             remaining: text("x-ratelimit-remaining").and_then(|v| v.parse().ok()),
@@ -115,7 +120,9 @@ struct ErrorBody {
 }
 
 /// The API marks individual sensor entries as nullable.
-fn skip_nulls<'de, D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Vec<SensorValue>, D::Error> {
+fn skip_nulls<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Vec<SensorValue>, D::Error> {
     let values: Option<Vec<Option<SensorValue>>> = Option::deserialize(deserializer)?;
     Ok(values.unwrap_or_default().into_iter().flatten().collect())
 }
@@ -128,11 +135,16 @@ pub struct ApiClient {
 
 impl ApiClient {
     pub fn new(http: reqwest::Client, base_url: impl Into<String>) -> Self {
-        ApiClient { http, base_url: base_url.into().trim_end_matches('/').to_owned() }
+        ApiClient {
+            http,
+            base_url: base_url.into().trim_end_matches('/').to_owned(),
+        }
     }
 
     pub async fn accounts(&self, token: &str) -> Result<Vec<Account>> {
-        let resp = self.send(self.http.get(self.url("/v1/accounts")), token).await?;
+        let resp = self
+            .send(self.http.get(self.url("/v1/accounts")), token)
+            .await?;
         Ok(resp.json::<AccountsResponse>().await?.accounts)
     }
 
@@ -143,12 +155,20 @@ impl ApiClient {
     }
 
     /// Latest values for every device on the account, following pagination.
-    pub async fn sensors(&self, token: &str, account_id: &str, unit: Unit) -> Result<(Vec<DeviceSensors>, RateLimit)> {
+    pub async fn sensors(
+        &self,
+        token: &str,
+        account_id: &str,
+        unit: Unit,
+    ) -> Result<(Vec<DeviceSensors>, RateLimit)> {
         let url = self.url(&format!("/v1/accounts/{account_id}/sensors"));
         let mut results = Vec::new();
         let mut rate_limit = RateLimit::default();
         for page in 1..=MAX_PAGES {
-            let request = self.http.get(&url).query(&[("pageNumber", page.to_string()), ("unit", unit.as_str().to_owned())]);
+            let request = self.http.get(&url).query(&[
+                ("pageNumber", page.to_string()),
+                ("unit", unit.as_str().to_owned()),
+            ]);
             let resp = self.send(request, token).await?;
             rate_limit = RateLimit::from_headers(resp.headers());
             let body: SensorsPage = resp.json().await?;
@@ -174,14 +194,19 @@ async fn check_status(resp: Response) -> Result<Response> {
     match resp.status() {
         s if s.is_success() => Ok(resp),
         StatusCode::UNAUTHORIZED => Err(Error::Unauthorized),
-        StatusCode::TOO_MANY_REQUESTS => Err(Error::RateLimited(retry_after_seconds(resp.headers()))),
+        StatusCode::TOO_MANY_REQUESTS => {
+            Err(Error::RateLimited(retry_after_seconds(resp.headers())))
+        }
         status => {
             let text = resp.text().await.unwrap_or_default();
             let message = serde_json::from_str::<ErrorBody>(&text)
                 .ok()
                 .and_then(|b| b.message)
                 .unwrap_or(text);
-            Err(Error::Api { status: status.as_u16(), message })
+            Err(Error::Api {
+                status: status.as_u16(),
+                message,
+            })
         }
     }
 }
@@ -190,7 +215,15 @@ async fn check_status(resp: Response) -> Result<Response> {
 fn retry_after_seconds(headers: &HeaderMap) -> u64 {
     ["x-ratelimit-retry-after", "retry-after"]
         .iter()
-        .find_map(|name| headers.get(*name)?.to_str().ok()?.trim().parse::<u64>().ok())
+        .find_map(|name| {
+            headers
+                .get(*name)?
+                .to_str()
+                .ok()?
+                .trim()
+                .parse::<u64>()
+                .ok()
+        })
         .unwrap_or(60)
 }
 
@@ -211,7 +244,9 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/v1/accounts"))
             .and(header("authorization", "Bearer tok"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"accounts": [{"id": "acc-1"}]})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"accounts": [{"id": "acc-1"}]})),
+            )
             .mount(&server)
             .await;
 
@@ -224,10 +259,12 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/v1/accounts/acc-1/devices"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"devices": [{
-                "serialNumber": "2930000001", "home": "Home", "name": "Living room",
-                "type": "WAVE_PLUS", "sensors": ["radonShortTermAvg", "co2"]
-            }]})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"devices": [{
+                    "serialNumber": "2930000001", "home": "Home", "name": "Living room",
+                    "type": "WAVE_PLUS", "sensors": ["radonShortTermAvg", "co2"]
+                }]})),
+            )
             .mount(&server)
             .await;
 
@@ -262,9 +299,20 @@ mod tests {
             .mount(&server)
             .await;
 
-        let (results, rate_limit) = client(&server).await.sensors("tok", "acc-1", Unit::Metric).await.unwrap();
+        let (results, rate_limit) = client(&server)
+            .await
+            .sensors("tok", "acc-1", Unit::Metric)
+            .await
+            .unwrap();
         assert_eq!(results.len(), 2);
-        assert_eq!(results[0].sensors, vec![SensorValue { sensor_type: "co2".into(), value: 612.0, unit: "ppm".into() }]);
+        assert_eq!(
+            results[0].sensors,
+            vec![SensorValue {
+                sensor_type: "co2".into(),
+                value: 612.0,
+                unit: "ppm".into()
+            }]
+        );
         assert_eq!(results[0].battery_percentage, Some(90));
         assert!(results[1].sensors.is_empty());
         assert_eq!(rate_limit.limit, Some(120));
@@ -274,7 +322,10 @@ mod tests {
     #[tokio::test]
     async fn maps_401_to_unauthorized() {
         let server = MockServer::start().await;
-        Mock::given(path("/v1/accounts")).respond_with(ResponseTemplate::new(401)).mount(&server).await;
+        Mock::given(path("/v1/accounts"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&server)
+            .await;
 
         let err = client(&server).await.accounts("tok").await.unwrap_err();
         assert!(matches!(err, Error::Unauthorized));
@@ -284,11 +335,17 @@ mod tests {
     async fn maps_429_to_rate_limited_with_retry_after() {
         let server = MockServer::start().await;
         Mock::given(path("/v1/accounts/acc-1/sensors"))
-            .respond_with(ResponseTemplate::new(429).insert_header("X-RateLimit-Retry-After", "321"))
+            .respond_with(
+                ResponseTemplate::new(429).insert_header("X-RateLimit-Retry-After", "321"),
+            )
             .mount(&server)
             .await;
 
-        let err = client(&server).await.sensors("tok", "acc-1", Unit::Metric).await.unwrap_err();
+        let err = client(&server)
+            .await
+            .sensors("tok", "acc-1", Unit::Metric)
+            .await
+            .unwrap_err();
         assert!(matches!(err, Error::RateLimited(321)));
     }
 

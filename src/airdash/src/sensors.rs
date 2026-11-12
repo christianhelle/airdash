@@ -29,8 +29,18 @@ struct SensorMeta {
     level: Option<fn(f64) -> Level>,
 }
 
-const fn same(label: &'static str, unit: &'static str, level: Option<fn(f64) -> Level>) -> SensorMeta {
-    SensorMeta { label, unit: (unit, unit), decimals: (0, 0), to_imperial: None, level }
+const fn same(
+    label: &'static str,
+    unit: &'static str,
+    level: Option<fn(f64) -> Level>,
+) -> SensorMeta {
+    SensorMeta {
+        label,
+        unit: (unit, unit),
+        decimals: (0, 0),
+        to_imperial: None,
+        level,
+    }
 }
 
 fn below(v: f64, fair: f64, poor: f64) -> Level {
@@ -71,7 +81,13 @@ fn meta(sensor_type: &str) -> Option<SensorMeta> {
             unit: ("°C", "°F"),
             decimals: (1, 1),
             to_imperial: Some(|c| c * 9.0 / 5.0 + 32.0),
-            level: Some(|v| if (18.0..25.0).contains(&v) { Level::Good } else { Level::Fair }),
+            level: Some(|v| {
+                if (18.0..25.0).contains(&v) {
+                    Level::Good
+                } else {
+                    Level::Fair
+                }
+            }),
         },
         "pressure" => SensorMeta {
             label: "Pressure",
@@ -90,7 +106,18 @@ fn meta(sensor_type: &str) -> Option<SensorMeta> {
 }
 
 /// Preferred tile order; unknown sensors follow alphabetically.
-const ORDER: [&str; 10] = ["radonShortTermAvg", "pm25", "pm1", "co2", "voc", "humidity", "temp", "pressure", "mold", "virusRisk"];
+const ORDER: [&str; 10] = [
+    "radonShortTermAvg",
+    "pm25",
+    "pm1",
+    "co2",
+    "voc",
+    "humidity",
+    "temp",
+    "pressure",
+    "mold",
+    "virusRisk",
+];
 
 pub fn sort_sensors<T>(items: &mut [T], key: impl Fn(&T) -> &str) {
     let rank = |t: &str| ORDER.iter().position(|o| *o == t).unwrap_or(ORDER.len());
@@ -137,7 +164,15 @@ pub fn convert(sensor_type: &str, metric_value: f64, unit: Unit) -> f64 {
 }
 
 pub fn format_value(sensor_type: &str, metric_value: f64, unit: Unit) -> String {
-    let decimals = meta(sensor_type).map(|m| if unit == Unit::Imperial { m.decimals.1 } else { m.decimals.0 }).unwrap_or(1);
+    let decimals = meta(sensor_type)
+        .map(|m| {
+            if unit == Unit::Imperial {
+                m.decimals.1
+            } else {
+                m.decimals.0
+            }
+        })
+        .unwrap_or(1);
     format!("{:.*}", decimals, convert(sensor_type, metric_value, unit))
 }
 
@@ -147,7 +182,10 @@ pub fn level_of(sensor_type: &str, metric_value: f64) -> Option<Level> {
 
 /// The worst level among a device's readings, for the card header.
 pub fn worst_level<'a>(readings: impl IntoIterator<Item = (&'a str, f64)>) -> Option<Level> {
-    readings.into_iter().filter_map(|(t, v)| level_of(t, v)).max()
+    readings
+        .into_iter()
+        .filter_map(|(t, v)| level_of(t, v))
+        .max()
 }
 
 pub fn device_type_name(device_type: &str) -> String {
@@ -175,7 +213,10 @@ pub fn device_type_name(device_type: &str) -> String {
         .split('_')
         .map(|word| {
             let mut chars = word.chars();
-            chars.next().map(|c| c.to_uppercase().chain(chars).collect()).unwrap_or_default()
+            chars
+                .next()
+                .map(|c| c.to_uppercase().chain(chars).collect())
+                .unwrap_or_default()
         })
         .collect::<Vec<String>>()
         .join(" ")
@@ -233,7 +274,10 @@ mod tests {
     #[test]
     fn formats_with_sensor_specific_precision() {
         assert_eq!(format_value("radonShortTermAvg", 50.0, Unit::Metric), "50");
-        assert_eq!(format_value("radonShortTermAvg", 50.0, Unit::Imperial), "1.4");
+        assert_eq!(
+            format_value("radonShortTermAvg", 50.0, Unit::Imperial),
+            "1.4"
+        );
         assert_eq!(format_value("temp", 21.27, Unit::Metric), "21.3");
     }
 
@@ -257,7 +301,10 @@ mod tests {
 
     #[test]
     fn worst_level_across_readings() {
-        assert_eq!(worst_level([("co2", 500.0), ("radonShortTermAvg", 120.0)]), Some(Level::Fair));
+        assert_eq!(
+            worst_level([("co2", 500.0), ("radonShortTermAvg", 120.0)]),
+            Some(Level::Fair)
+        );
         assert_eq!(worst_level([("pressure", 1000.0)]), None);
     }
 
@@ -265,6 +312,9 @@ mod tests {
     fn sorts_radon_first_and_unknown_sensors_last() {
         let mut sensors = ["temp", "zeta", "co2", "radonShortTermAvg", "alpha"];
         sort_sensors(&mut sensors, |s| s);
-        assert_eq!(sensors, ["radonShortTermAvg", "co2", "temp", "alpha", "zeta"]);
+        assert_eq!(
+            sensors,
+            ["radonShortTermAvg", "co2", "temp", "alpha", "zeta"]
+        );
     }
 }

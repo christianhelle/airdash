@@ -54,7 +54,11 @@ fn main() -> eframe::Result {
         Box::new(|cc| {
             let _ = egui_ctx.set(cc.egui_ctx.clone());
             let backend = backend::Backend::new(cc.egui_ctx.clone())?;
-            Ok(Box::new(app::AirDashApp::new(&cc.egui_ctx, backend, cc.storage)))
+            Ok(Box::new(app::AirDashApp::new(
+                &cc.egui_ctx,
+                backend,
+                cc.storage,
+            )))
         }),
     )
 }

@@ -63,7 +63,11 @@ impl SettingsView {
                 .width(260.0)
                 .show_ui(ui, |ui| {
                     for theme in ["system", "light", "dark"] {
-                        ui.selectable_value(&mut self.draft.theme, theme.to_owned(), theme_label(theme));
+                        ui.selectable_value(
+                            &mut self.draft.theme,
+                            theme.to_owned(),
+                            theme_label(theme),
+                        );
                     }
                 })
                 .response
@@ -99,7 +103,10 @@ impl SettingsView {
                 self.draft.oauth_client_secret = Some(self.oauth_client_secret.clone());
                 match backend.save_settings(self.draft.clone()) {
                     Ok(saved) => {
-                        *self = SettingsView { message: "Settings saved.".into(), ..SettingsView::new(&saved) };
+                        *self = SettingsView {
+                            message: "Settings saved.".into(),
+                            ..SettingsView::new(&saved)
+                        };
                         action = Some(Action::Saved(saved));
                     }
                     Err(e) => self.message = e.to_string(),
@@ -117,7 +124,10 @@ impl SettingsView {
                 _ => "with an API client",
             };
             ui.weak(format!("Signed in {how}."));
-            if ui.add_enabled(self.sign_out.is_none(), egui::Button::new("Sign out")).clicked() {
+            if ui
+                .add_enabled(self.sign_out.is_none(), egui::Button::new("Sign out"))
+                .clicked()
+            {
                 self.sign_out = Some(backend.sign_out());
             }
         });

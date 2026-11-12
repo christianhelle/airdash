@@ -19,10 +19,17 @@ pub struct Snapshot {
 pub async fn fetch(session: &Session) -> Result<Snapshot> {
     let account = session.account_id().await?;
     let account = account.as_str();
-    let devices = session.call(|t| async move { session.api().devices(&t, account).await }).await?;
-    let (readings, rate_limit) =
-        session.call(|t| async move { session.api().sensors(&t, account, Unit::Metric).await }).await?;
-    Ok(Snapshot { devices, readings, rate_limit: Some(rate_limit) })
+    let devices = session
+        .call(|t| async move { session.api().devices(&t, account).await })
+        .await?;
+    let (readings, rate_limit) = session
+        .call(|t| async move { session.api().sensors(&t, account, Unit::Metric).await })
+        .await?;
+    Ok(Snapshot {
+        devices,
+        readings,
+        rate_limit: Some(rate_limit),
+    })
 }
 
 #[cfg(test)]
@@ -41,11 +48,16 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/v1/token"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"access_token": "a", "expires_in": 3600})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"access_token": "a", "expires_in": 3600})),
+            )
             .mount(&server)
             .await;
         Mock::given(path("/v1/accounts"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"accounts": [{"id": "acc"}]})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"accounts": [{"id": "acc"}]})),
+            )
             .mount(&server)
             .await;
         Mock::given(path("/v1/accounts/acc/devices"))
@@ -65,7 +77,11 @@ mod tests {
 
         let secrets = Arc::new(MemoryStore::default());
         secrets
-            .save(&Credentials::ClientCredentials { client_id: "id".into(), client_secret: "s".into(), scope: "read".into() })
+            .save(&Credentials::ClientCredentials {
+                client_id: "id".into(),
+                client_secret: "s".into(),
+                scope: "read".into(),
+            })
             .unwrap();
         let http = reqwest::Client::new();
         let session = Session::new(

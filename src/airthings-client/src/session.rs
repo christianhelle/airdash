@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 
 use crate::api::ApiClient;
-use crate::auth::{self, AuthClient, Credentials, Pkce, TokenResponse, DEFAULT_AUTHORIZE_URL};
+use crate::auth::{self, AuthClient, Credentials, DEFAULT_AUTHORIZE_URL, Pkce, TokenResponse};
 use crate::error::{Error, Result};
 use crate::store::SecretStore;
 
@@ -25,7 +25,10 @@ struct Token {
 
 impl Token {
     fn from_response(resp: &TokenResponse) -> Self {
-        let lifetime = resp.expires_in.map(Duration::from_secs).unwrap_or(DEFAULT_LIFETIME);
+        let lifetime = resp
+            .expires_in
+            .map(Duration::from_secs)
+            .unwrap_or(DEFAULT_LIFETIME);
         Token {
             access_token: resp.access_token.clone(),
             expires_at: Instant::now() + lifetime.saturating_sub(EXPIRY_MARGIN),
@@ -88,7 +91,11 @@ impl Session {
         self.secrets.save(&credentials)?;
         *self.credentials.lock().unwrap() = Some(credentials);
         *self.account_id.lock().unwrap() = None;
-        *self.token.try_lock().map_err(|_| Error::Other("sign-in already in progress".into()))? = Some(Token::from_response(resp));
+        *self
+            .token
+            .try_lock()
+            .map_err(|_| Error::Other("sign-in already in progress".into()))? =
+            Some(Token::from_response(resp));
         Ok(())
     }
 
@@ -103,25 +110,51 @@ impl Session {
     ) -> Result<()> {
         let listener = TcpListener::bind(("127.0.0.1", redirect_port))
             .await
-            .map_err(|e| Error::Other(format!("could not listen for the sign-in redirect on port {redirect_port}: {e}")))?;
+            .map_err(|e| {
+                Error::Other(format!(
+                    "could not listen for the sign-in redirect on port {redirect_port}: {e}"
+                ))
+            })?;
 
         let pkce = Pkce::generate();
         let csrf_state = auth::random_token();
         let redirect_uri = auth::redirect_uri(redirect_port);
-        open_browser(auth::authorize_url(DEFAULT_AUTHORIZE_URL, &client_id, &redirect_uri, &csrf_state, &pkce.challenge)?)?;
+        open_browser(auth::authorize_url(
+            DEFAULT_AUTHORIZE_URL,
+            &client_id,
+            &redirect_uri,
+            &csrf_state,
+            &pkce.challenge,
+        )?)?;
 
-        let code = tokio::time::timeout(SIGN_IN_TIMEOUT, auth::wait_for_code(listener, &csrf_state))
-            .await
-            .map_err(|_| Error::Other("timed out waiting for the Airthings sign-in".into()))??;
+        let code =
+            tokio::time::timeout(SIGN_IN_TIMEOUT, auth::wait_for_code(listener, &csrf_state))
+                .await
+                .map_err(|_| {
+                    Error::Other("timed out waiting for the Airthings sign-in".into())
+                })??;
         let resp = self
             .auth
-            .exchange_code(&client_id, client_secret.as_deref(), &code, &redirect_uri, &pkce.verifier)
+            .exchange_code(
+                &client_id,
+                client_secret.as_deref(),
+                &code,
+                &redirect_uri,
+                &pkce.verifier,
+            )
             .await?;
         let refresh_token = resp
             .refresh_token
             .clone()
             .ok_or_else(|| Error::Other("Airthings did not return a refresh token".into()))?;
-        self.complete_sign_in(Credentials::RefreshToken { client_id, client_secret, refresh_token }, &resp)
+        self.complete_sign_in(
+            Credentials::RefreshToken {
+                client_id,
+                client_secret,
+                refresh_token,
+            },
+            &resp,
+        )
     }
 
     pub async fn sign_out(&self) {
@@ -184,7 +217,9 @@ impl Session {
         if let Some(id) = self.account_id.lock().unwrap().clone() {
             return Ok(id);
         }
-        let accounts = self.call(|t| async move { self.api.accounts(&t).await }).await?;
+        let accounts = self
+            .call(|t| async move { self.api.accounts(&t).await })
+            .await?;
         let id = accounts
             .into_iter()
             .next()
@@ -193,15 +228,23 @@ impl Session {
         *self.account_id.lock().unwrap() = Some(id.clone());
         Ok(id)
     }
-
 }
 
 /// Airthings may hand out a new refresh token with each refresh; keep the latest one.
 fn rotate(credentials: Credentials, resp: &TokenResponse) -> Credentials {
     match (credentials, &resp.refresh_token) {
-        (Credentials::RefreshToken { client_id, client_secret, .. }, Some(new)) => {
-            Credentials::RefreshToken { client_id, client_secret, refresh_token: new.clone() }
-        }
+        (
+            Credentials::RefreshToken {
+                client_id,
+                client_secret,
+                ..
+            },
+            Some(new),
+        ) => Credentials::RefreshToken {
+            client_id,
+            client_secret,
+            refresh_token: new.clone(),
+        },
         (credentials, _) => credentials,
     }
 }
@@ -224,13 +267,20 @@ mod tests {
     }
 
     fn client_credentials() -> Credentials {
-        Credentials::ClientCredentials { client_id: "id".into(), client_secret: "s".into(), scope: "read".into() }
+        Credentials::ClientCredentials {
+            client_id: "id".into(),
+            client_secret: "s".into(),
+            scope: "read".into(),
+        }
     }
 
     async fn token_endpoint(server: &MockServer, access_token: &str) {
         Mock::given(method("POST"))
             .and(path("/v1/token"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"access_token": access_token, "expires_in": 3600})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"access_token": access_token, "expires_in": 3600})),
+            )
             .mount(server)
             .await;
     }
@@ -240,7 +290,10 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/v1/token"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"access_token": "a", "expires_in": 3600})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"access_token": "a", "expires_in": 3600})),
+            )
             .expect(1)
             .mount(&server)
             .await;
@@ -271,13 +324,27 @@ mod tests {
         token_endpoint(&server, "new").await;
         Mock::given(path("/v1/accounts"))
             .and(header("authorization", "Bearer new"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"accounts": [{"id": "acc"}]})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"accounts": [{"id": "acc"}]})),
+            )
             .mount(&server)
             .await;
-        Mock::given(path("/v1/accounts")).respond_with(ResponseTemplate::new(401)).mount(&server).await;
+        Mock::given(path("/v1/accounts"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&server)
+            .await;
 
         let session = session(&server, Arc::new(MemoryStore::default()));
-        session.complete_sign_in(client_credentials(), &TokenResponse { access_token: "stale".into(), expires_in: Some(3600), refresh_token: None }).unwrap();
+        session
+            .complete_sign_in(
+                client_credentials(),
+                &TokenResponse {
+                    access_token: "stale".into(),
+                    expires_in: Some(3600),
+                    refresh_token: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(session.account_id().await.unwrap(), "acc");
     }
@@ -286,32 +353,56 @@ mod tests {
     async fn keeps_rotated_refresh_token() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(body_partial_json(json!({"grant_type": "refresh_token", "refresh_token": "r1"})))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"access_token": "a2", "refresh_token": "r2", "expires_in": 3600})))
+            .and(body_partial_json(
+                json!({"grant_type": "refresh_token", "refresh_token": "r1"}),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({"access_token": "a2", "refresh_token": "r2", "expires_in": 3600}),
+            ))
             .mount(&server)
             .await;
         let secrets = Arc::new(MemoryStore::default());
         let session = session(&server, secrets.clone());
-        let creds = Credentials::RefreshToken { client_id: "id".into(), client_secret: None, refresh_token: "r0".into() };
+        let creds = Credentials::RefreshToken {
+            client_id: "id".into(),
+            client_secret: None,
+            refresh_token: "r0".into(),
+        };
         // The code exchange already returned r1 and a token that is about to expire.
-        session.complete_sign_in(creds, &TokenResponse { access_token: "a1".into(), expires_in: Some(0), refresh_token: Some("r1".into()) }).unwrap();
+        session
+            .complete_sign_in(
+                creds,
+                &TokenResponse {
+                    access_token: "a1".into(),
+                    expires_in: Some(0),
+                    refresh_token: Some("r1".into()),
+                },
+            )
+            .unwrap();
 
         assert_eq!(session.access_token().await.unwrap(), "a2");
-        assert!(matches!(secrets.load(), Some(Credentials::RefreshToken { refresh_token, .. }) if refresh_token == "r2"));
+        assert!(
+            matches!(secrets.load(), Some(Credentials::RefreshToken { refresh_token, .. }) if refresh_token == "r2")
+        );
     }
 
     #[tokio::test]
     async fn rejected_refresh_signs_out() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(400).set_body_json(json!({"error": "invalid_grant"})))
+            .respond_with(
+                ResponseTemplate::new(400).set_body_json(json!({"error": "invalid_grant"})),
+            )
             .mount(&server)
             .await;
         let secrets = Arc::new(MemoryStore::default());
         secrets.save(&client_credentials()).unwrap();
         let session = session(&server, secrets.clone());
 
-        assert!(matches!(session.access_token().await, Err(Error::Unauthorized)));
+        assert!(matches!(
+            session.access_token().await,
+            Err(Error::Unauthorized)
+        ));
         assert!(!session.is_signed_in());
         assert_eq!(secrets.load(), None);
     }
@@ -320,8 +411,12 @@ mod tests {
     async fn oauth_sign_in_exchanges_the_code_from_the_browser_redirect() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(body_partial_json(json!({"grant_type": "authorization_code", "code": "xyz"})))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"access_token": "a", "refresh_token": "r", "expires_in": 3600})))
+            .and(body_partial_json(
+                json!({"grant_type": "authorization_code", "code": "xyz"}),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({"access_token": "a", "refresh_token": "r", "expires_in": 3600}),
+            ))
             .mount(&server)
             .await;
         let secrets = Arc::new(MemoryStore::default());
@@ -331,13 +426,26 @@ mod tests {
         // Stand in for the browser: follow the authorize URL's state back to the loopback redirect.
         let browser = |url: String| {
             let url = reqwest::Url::parse(&url).unwrap();
-            let state = url.query_pairs().find(|(k, _)| k == "state").unwrap().1.into_owned();
-            tokio::spawn(reqwest::get(format!("{}?code=xyz&state={state}", auth::redirect_uri(port))));
+            let state = url
+                .query_pairs()
+                .find(|(k, _)| k == "state")
+                .unwrap()
+                .1
+                .into_owned();
+            tokio::spawn(reqwest::get(format!(
+                "{}?code=xyz&state={state}",
+                auth::redirect_uri(port)
+            )));
             Ok(())
         };
-        session.sign_in_oauth("id".into(), None, port, browser).await.unwrap();
+        session
+            .sign_in_oauth("id".into(), None, port, browser)
+            .await
+            .unwrap();
 
-        assert!(matches!(secrets.load(), Some(Credentials::RefreshToken { refresh_token, .. }) if refresh_token == "r"));
+        assert!(
+            matches!(secrets.load(), Some(Credentials::RefreshToken { refresh_token, .. }) if refresh_token == "r")
+        );
         assert_eq!(session.access_token().await.unwrap(), "a");
     }
 
@@ -345,6 +453,9 @@ mod tests {
     async fn signed_out_session_is_unauthorized() {
         let server = MockServer::start().await;
         let session = session(&server, Arc::new(MemoryStore::default()));
-        assert!(matches!(session.access_token().await, Err(Error::Unauthorized)));
+        assert!(matches!(
+            session.access_token().await,
+            Err(Error::Unauthorized)
+        ));
     }
 }

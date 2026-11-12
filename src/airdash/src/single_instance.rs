@@ -28,16 +28,21 @@ fn acquire_on(port: u16) -> Instance {
         Ok(listener) => Instance::Primary(listener),
         // Only a port in use can have an AirDash behind it. Any other error, e.g. Windows reserving the port for
         // Hyper-V, means nobody listens, and connecting to it on Windows takes the whole timeout to be refused.
-        Err(e) if e.kind() == ErrorKind::AddrInUse && ask_running_instance(port) => Instance::Secondary,
+        Err(e) if e.kind() == ErrorKind::AddrInUse && ask_running_instance(port) => {
+            Instance::Secondary
+        }
         // Something other than AirDash holds the port, or it can't be used: start normally, just without the
         // single-instance check.
-        Err(_) => Instance::Primary(TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind a loopback port")),
+        Err(_) => Instance::Primary(
+            TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind a loopback port"),
+        ),
     }
 }
 
 /// True only when an AirDash on `port` acknowledged the request to show its window.
 fn ask_running_instance(port: u16) -> bool {
-    let Ok(mut stream) = TcpStream::connect_timeout(&(Ipv4Addr::LOCALHOST, port).into(), TIMEOUT) else {
+    let Ok(mut stream) = TcpStream::connect_timeout(&(Ipv4Addr::LOCALHOST, port).into(), TIMEOUT)
+    else {
         return false;
     };
     let _ = stream.set_read_timeout(Some(TIMEOUT));
@@ -70,12 +75,15 @@ mod tests {
     #[test]
     fn second_instance_asks_the_first_to_show() {
         let port = 53_995;
-        let Instance::Primary(listener) = acquire_on(port) else { panic!("first instance should be primary") };
+        let Instance::Primary(listener) = acquire_on(port) else {
+            panic!("first instance should be primary")
+        };
         let (tx, rx) = mpsc::channel();
         listen(listener, move || tx.send(()).unwrap());
 
         assert!(matches!(acquire_on(port), Instance::Secondary));
-        rx.recv_timeout(Duration::from_secs(2)).expect("primary was asked to show");
+        rx.recv_timeout(Duration::from_secs(2))
+            .expect("primary was asked to show");
     }
 
     #[test]

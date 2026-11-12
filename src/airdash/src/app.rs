@@ -40,7 +40,11 @@ pub struct AirDashApp {
 const WINDOW_STATE_KEY: &str = "window";
 
 impl AirDashApp {
-    pub fn new(ctx: &egui::Context, backend: Backend, storage: Option<&dyn eframe::Storage>) -> Self {
+    pub fn new(
+        ctx: &egui::Context,
+        backend: Backend,
+        storage: Option<&dyn eframe::Storage>,
+    ) -> Self {
         theme::install(ctx);
         theme::apply(ctx, &backend.settings().theme);
         let mut app = AirDashApp {
@@ -71,7 +75,11 @@ impl AirDashApp {
 
     fn save_state(&mut self) {
         self.devices = self.state.devices();
-        self.error = self.backend.save_state(&self.state).err().map(|e| e.to_string());
+        self.error = self
+            .backend
+            .save_state(&self.state)
+            .err()
+            .map(|e| e.to_string());
     }
 
     fn refresh_auth(&mut self) {
@@ -99,7 +107,9 @@ impl AirDashApp {
                     self.save_state();
                 }
                 // A rejected refresh token signs the user out.
-                Err(Error::Unauthorized) if !self.backend.session.is_signed_in() => self.signed_out(),
+                Err(Error::Unauthorized) if !self.backend.session.is_signed_in() => {
+                    self.signed_out()
+                }
                 Err(e) => self.status.last_error = Some(e.to_string()),
             }
         }
@@ -120,7 +130,10 @@ impl AirDashApp {
         self.refresh = None;
         self.status = status_bar::Status::default();
         // The next account sees only its own devices. Their order is kept, as it is per device.
-        self.state = AppState { device_order: std::mem::take(&mut self.state.device_order), ..AppState::default() };
+        self.state = AppState {
+            device_order: std::mem::take(&mut self.state.device_order),
+            ..AppState::default()
+        };
         self.save_state();
         self.refresh_auth();
     }
@@ -165,7 +178,10 @@ impl eframe::App for AirDashApp {
 
     // Runs even while the window is minimized.
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        if let Some(window) = frame.winit_window().filter(|w| w.is_minimized() != Some(true)) {
+        if let Some(window) = frame
+            .winit_window()
+            .filter(|w| w.is_minimized() != Some(true))
+        {
             self.window = Some(WindowSettings::from_window(ctx.zoom_factor(), window));
         }
         self.update_refresh(ctx);
@@ -191,46 +207,55 @@ impl eframe::App for AirDashApp {
             ui.add_space(4.0);
         });
         // Keep relative times such as "2 min ago" current.
-        ui.ctx().request_repaint_after(std::time::Duration::from_secs(30));
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_secs(30));
         egui::CentralPanel::default().show(ui, |ui| {
-            egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-                if let Some(error) = &self.error {
-                    ui.colored_label(ui.visuals().error_fg_color, error);
-                }
-                let unit = self.settings.unit;
-                let mut signed_out = false;
-                let mut reordered = None;
-                let next = match &mut self.view {
-                    View::Settings(view) => match view.ui(ui, &self.backend, &self.auth) {
-                        Some(settings::Action::Back) => Some(View::Dashboard),
-                        Some(settings::Action::Saved(saved)) => {
-                            theme::apply(ui.ctx(), &saved.theme);
-                            self.settings = saved;
-                            None
-                        }
-                        Some(settings::Action::SignedOut) => {
-                            signed_out = true;
-                            None
-                        }
-                        None => None,
-                    },
-                    View::Dashboard => {
-                        let loaded = self.status.last_refresh.is_some();
-                        reordered = dashboard::ui(ui, &self.devices, &self.state.snapshot.readings, loaded, unit);
-                        None
+            egui::ScrollArea::vertical()
+                .auto_shrink(false)
+                .show(ui, |ui| {
+                    if let Some(error) = &self.error {
+                        ui.colored_label(ui.visuals().error_fg_color, error);
                     }
-                };
-                if let Some(next) = next {
-                    self.view = next;
-                }
-                if signed_out {
-                    self.signed_out();
-                }
-                if let Some(order) = reordered {
-                    self.state.device_order = order;
-                    self.save_state();
-                }
-            });
+                    let unit = self.settings.unit;
+                    let mut signed_out = false;
+                    let mut reordered = None;
+                    let next = match &mut self.view {
+                        View::Settings(view) => match view.ui(ui, &self.backend, &self.auth) {
+                            Some(settings::Action::Back) => Some(View::Dashboard),
+                            Some(settings::Action::Saved(saved)) => {
+                                theme::apply(ui.ctx(), &saved.theme);
+                                self.settings = saved;
+                                None
+                            }
+                            Some(settings::Action::SignedOut) => {
+                                signed_out = true;
+                                None
+                            }
+                            None => None,
+                        },
+                        View::Dashboard => {
+                            let loaded = self.status.last_refresh.is_some();
+                            reordered = dashboard::ui(
+                                ui,
+                                &self.devices,
+                                &self.state.snapshot.readings,
+                                loaded,
+                                unit,
+                            );
+                            None
+                        }
+                    };
+                    if let Some(next) = next {
+                        self.view = next;
+                    }
+                    if signed_out {
+                        self.signed_out();
+                    }
+                    if let Some(order) = reordered {
+                        self.state.device_order = order;
+                        self.save_state();
+                    }
+                });
         });
     }
 }

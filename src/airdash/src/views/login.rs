@@ -132,7 +132,9 @@ impl LoginView {
 
     /// Set up an Airthings OAuth client (authorization code flow) and sign in through the browser with it.
     fn oauth_setup(&mut self, ui: &mut egui::Ui, backend: &Backend, busy: bool) {
-        let form = self.oauth.get_or_insert_with(|| OAuthForm::from_settings(&backend.settings()));
+        let form = self
+            .oauth
+            .get_or_insert_with(|| OAuthForm::from_settings(&backend.settings()));
         let mut start = false;
         egui::CollapsingHeader::new("Sign in through the browser with your own OAuth client").show(ui, |ui| {
             ui.weak("For an Airthings OAuth client that uses the authorization code flow. Register this redirect URI with it:");

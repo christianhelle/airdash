@@ -53,9 +53,15 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub fn new(ctx: egui::Context) -> std::result::Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let config_dir = dirs::config_dir().ok_or("no config folder on this system")?.join(APP_IDENTIFIER);
-        let data_dir = dirs::data_dir().ok_or("no data folder on this system")?.join(APP_IDENTIFIER);
+    pub fn new(
+        ctx: egui::Context,
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let config_dir = dirs::config_dir()
+            .ok_or("no config folder on this system")?
+            .join(APP_IDENTIFIER);
+        let data_dir = dirs::data_dir()
+            .ok_or("no data folder on this system")?
+            .join(APP_IDENTIFIER);
         std::fs::create_dir_all(&config_dir)?;
         std::fs::create_dir_all(&data_dir)?;
 
@@ -72,14 +78,26 @@ impl Backend {
             Arc::new(KeychainStore::new(data_dir.join("credentials.json"))),
         ));
 
-        let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?;
 
         let state_path = data_dir.join("state.json");
-        Ok(Backend { runtime, ctx, session, settings, settings_path, state_path })
+        Ok(Backend {
+            runtime,
+            ctx,
+            session,
+            settings,
+            settings_path,
+            state_path,
+        })
     }
 
     /// Run `future` on the runtime and wake the UI when it finishes.
-    pub fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + Send + 'static) -> Task<T> {
+    pub fn spawn<T: Send + 'static>(
+        &self,
+        future: impl Future<Output = T> + Send + 'static,
+    ) -> Task<T> {
         let (tx, rx) = mpsc::channel();
         let ctx = self.ctx.clone();
         self.runtime.spawn(async move {
@@ -133,27 +151,44 @@ impl Backend {
         let settings = self.settings();
         let session = self.session.clone();
         self.spawn(async move {
-            let (client_id, client_secret) = settings
-                .oauth_client()
-                .ok_or_else(|| Error::Other("no Airthings OAuth client is set up; sign in with your API client instead".into()))?;
+            let (client_id, client_secret) = settings.oauth_client().ok_or_else(|| {
+                Error::Other(
+                    "no Airthings OAuth client is set up; sign in with your API client instead"
+                        .into(),
+                )
+            })?;
             session
                 .sign_in_oauth(client_id, client_secret, settings.redirect_port, |url| {
-                    open::that_detached(url).map_err(|e| Error::Other(format!("could not open the browser: {e}")))
+                    open::that_detached(url)
+                        .map_err(|e| Error::Other(format!("could not open the browser: {e}")))
                 })
                 .await
         })
     }
 
     /// Sign in with an API client the user created in Airthings "My Applications".
-    pub fn sign_in_client_credentials(&self, client_id: &str, client_secret: &str) -> Task<Result<()>> {
-        let (client_id, client_secret) = (client_id.trim().to_owned(), client_secret.trim().to_owned());
+    pub fn sign_in_client_credentials(
+        &self,
+        client_id: &str,
+        client_secret: &str,
+    ) -> Task<Result<()>> {
+        let (client_id, client_secret) =
+            (client_id.trim().to_owned(), client_secret.trim().to_owned());
         let scope = self.settings().scope;
         let session = self.session.clone();
         self.spawn(async move {
             if client_id.is_empty() || client_secret.is_empty() {
-                return Err(Error::Other("enter both the client ID and the client secret".into()));
+                return Err(Error::Other(
+                    "enter both the client ID and the client secret".into(),
+                ));
             }
-            session.sign_in(Credentials::ClientCredentials { client_id, client_secret, scope }).await
+            session
+                .sign_in(Credentials::ClientCredentials {
+                    client_id,
+                    client_secret,
+                    scope,
+                })
+                .await
         })
     }
 
